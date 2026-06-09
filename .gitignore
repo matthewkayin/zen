@@ -1,0 +1,8 @@
+engine/bin
+sandbox/bin
+engine/obj
+sandbox/obj
+engine/.cache
+sandbox/.cache
+sandbox/compile_commands.json
+engine/compile_commands.json
