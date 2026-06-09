@@ -10,7 +10,7 @@ LIB_DIR         := lib
 
 CXX             := clang++
 CXX_FLAGS       := -std=c++11 -Wall -Wextra -Wshadow -fvisibility=hidden
-LD_FLAGS        := -shared
+LD_FLAGS        :=
 
 INCLUDE_FLAGS   := -Isrc -Ivendor
 DEFINES         := -DZEN_EXPORT
@@ -23,13 +23,12 @@ EXTENSION       :=
 
 ifeq ($(OS),Windows_NT)
 	PLATFORM   := win64
-	EXTENSION  := .dll
+	EXTENSION  := .exe
 	LIB_DIR    := lib\win64
 
 	# Recursive wildcard
 	rwildcard=$(wildcard $1$2) $(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2))
 	SRC_FILES   := $(call rwildcard,$(SRC_DIR)/,*.cpp)
-	RC_FILES    := $(SRC_DIR)/win_icon.rc
 	DIRECTORY   := $(subst /,\,${CURDIR})
 	SHELL       := cmd
 	DIRECTORIES := \$(SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SRC_DIR) /S /AD /B | findstr /i $(SRC_DIR)))
@@ -49,7 +48,6 @@ else
 
 	ifeq ($(UNAME_S),Darwin)
 		PLATFORM := macos
-		EXTENSION := .dylib
 		LIB_DIR  := lib/macos
 
 		LDFLAGS += \
@@ -60,7 +58,6 @@ else
 
 	ifeq ($(UNAME_S),Linux)
 		PLATFORM := linux
-		EXTENSION := .so
 		LIB_DIR  := lib/linux64
 
 		LDFLAGS += \
