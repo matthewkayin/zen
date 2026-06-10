@@ -1,4 +1,9 @@
-bin
-obj
-.cache
-compile_commands.json
+engine/bin
+engine/obj
+engine/.cache
+engine/compile_commands.json
+sandbox/bin
+sandbox/obj
+sandbox/.cache
+sandbox/compile_commands.json
+.cache/

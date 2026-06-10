@@ -1,5 +1,7 @@
 #pragma once
 
+#include "defines.h"
+
 #if ZEN_RELEASE
     #define ZEN_LOG_LEVEL LOG_LEVEL_INFO
 #else
@@ -16,7 +18,7 @@ enum LogLevel {
 bool logger_init();
 void logger_quit();
 
-void logger_output(LogLevel log_level, const char* message, ...);
+ZEN_API void logger_output(LogLevel log_level, const char* message, ...);
 
 #if ZEN_LOG_LEVEL >= LOG_LEVEL_ERROR
     #define log_error(message, ...) logger_output(LOG_LEVEL_ERROR, message, ##__VA_ARGS__);
