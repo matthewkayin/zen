@@ -1,8 +1,96 @@
 #include "core/logger.h"
+#include "core/input.h"
+#include <SDL3/SDL.h>
+
+struct GameState {
+    SDL_Window* window;
+
+    uint64_t last_time;
+    uint64_t last_second;
+    uint32_t frames;
+    uint32_t updates;
+    uint32_t fps;
+    uint32_t ups;
+};
+static GameState state;
+
+bool game_init();
+void game_quit();
+bool game_is_running();
+double game_timekeep();
 
 int main() {
-    logger_init();
-    log_info("hi friend");
-    logger_quit();
+    if (!game_init()) {
+        return 1;
+    }
+
+    while (game_is_running()) {
+        double delta = game_timekeep();
+        input_poll_events();
+        state.updates++;
+        state.frames++;
+    }
+
+    game_quit();
     return 0;
+}
+
+bool game_init() {
+    if (!logger_init()) {
+        return false;
+    }
+
+    // Log initialization messages
+    log_info("Initializing %s.", ZEN_APP_NAME);
+    log_info("Detected platform %s.", ZEN_PLATFORM_STR);
+    log_info("%s build.", ZEN_BUILD_STR);
+
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        log_error("Failed to initialize SDL: %s", SDL_GetError());
+        return false;
+    }
+
+    // Create window
+    const int window_width = 1280;
+    const int window_height = 720;
+    state.window = SDL_CreateWindow(ZEN_APP_NAME, window_width, window_height, 0);
+    if (state.window == nullptr) {
+        log_error("Error creating window: %s", SDL_GetError());
+        return false;
+    }
+
+    // Init sub-systems
+    input_init(state.window);
+
+    return true;
+}
+
+void game_quit() {
+    SDL_DestroyWindow(state.window);
+    SDL_Quit();
+
+    log_info("%s quit gracefully.", ZEN_APP_NAME);
+    logger_quit();
+}
+
+bool game_is_running() {
+    return !input_user_requests_exit();
+}
+
+double game_timekeep() {
+    uint64_t current_time = SDL_GetTicksNS();
+    double elapsed_time = (double)(current_time - state.last_time);
+    state.last_time = current_time;
+
+    double delta = elapsed_time / (double)SDL_NS_PER_SECOND;
+
+    if (current_time - state.last_second >= SDL_NS_PER_SECOND) {
+        state.fps = state.frames;
+        state.ups = state.updates;
+        state.frames = 0;
+        state.updates = 0;
+        state.last_second += SDL_NS_PER_SECOND;
+    }
+
+    return delta;
 }
