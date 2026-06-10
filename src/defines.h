@@ -14,21 +14,6 @@
     #define ZEN_PLATFORM_MACOS 1
 #endif
 
-// API export / import
-#ifdef ZEN_EXPORT
-    #ifdef _MSC_VER
-        #define ZEN_API __declspec(dllexport)
-    #else
-        #define ZEN_API __attribute__((visibility("default")))
-    #endif
-#else
-    #ifdef _MSC_VER
-        #define ZEN_API __declspec(dllimport)
-    #else
-        #define ZEN_API
-    #endif
-#endif
-
 // Debug configuration
 #if _DEBUG
     #define ZEN_DEBUG 1
