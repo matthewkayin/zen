@@ -8,13 +8,25 @@ OBJ_DIR         := obj
 SRC_DIR         := src
 
 CXX             := clang++
-CXX_FLAGS       := -std=c++11 -Wall -Wextra -Wshadow
+CXX_FLAGS       := -std=c++11 -Wall -Wextra -Wshadow -fno-exceptions
 LD_FLAGS        :=
 
 INCLUDE_FLAGS   := -Isrc -Ivendor
 DEFINES         := -D_CRT_SECURE_NO_WARNINGS
 
 EXTENSION       :=
+
+# ------------------------------------------------------------------------------
+# Build configuration
+# ------------------------------------------------------------------------------
+
+ifeq ($(RELEASE),1)
+	CXX_FLAGS += -O2
+else
+	CXX_FLAGS += -g -O0
+	LD_FLAGS += -g
+	DEFINES += -D_DEBUG
+endif
 
 # ------------------------------------------------------------------------------
 # Platform Detection
@@ -35,9 +47,7 @@ ifeq ($(OS),Windows_NT)
 	LD_FLAGS += \
 		-L$(LIB_DIR) \
 		-lSDL3 \
-		-luser32 \
-		-lws2_32 \
-		-lwinmm
+		-lvulkan-1
 
 else
 	UNAME_S := $(shell uname -s)
@@ -75,19 +85,8 @@ OBJ_FILES := $(SRC_FILES:%=$(OBJ_DIR)/%.o)
 # Target Recipes
 # ------------------------------------------------------------------------------
 
-.PHONY: debug
-debug: debug_flags scaffold compile link
-
-.PHONY: release
-release: release_flags scaffold compile link
-
-.PHONY: debug_flags
-debug_flags: CXX_FLAGS += -g -O0
-debug_flags: LD_FLAGS += -g
-debug_flags: DEFINES += -D_DEBUG
-
-.PHONY: release_flags
-release_flags: CXX_FLAGS += -O2
+.PHONY: all
+all: scaffold compile link
 
 # ------------------------------------------------------------------------------
 # Scaffold
@@ -144,7 +143,7 @@ clean:
 	@echo Cleaning...
 
 ifeq ($(PLATFORM),win64)
-	@if exist $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION) del $(BUILD_DIR)\$(TARGET)$(EXTENSION)
+	@if exist $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION) del $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION)
 	@if exist $(OBJ_DIR) rmdir /s /q $(OBJ_DIR)
 else
 	@rm -rf $(OBJ_DIR)

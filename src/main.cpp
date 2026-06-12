@@ -1,5 +1,6 @@
 #include "core/logger.h"
 #include "core/input.h"
+#include "renderer/frontend.h"
 #include <SDL3/SDL.h>
 
 struct GameState {
@@ -25,9 +26,13 @@ int main() {
     }
 
     while (game_is_running()) {
-        double delta = game_timekeep();
+        double delta_time = game_timekeep();
         input_poll_events();
         state.updates++;
+
+        RenderPacket packet;
+        packet.delta_time = delta_time;
+        renderer_draw_frame(&packet);
         state.frames++;
     }
 
@@ -61,11 +66,16 @@ bool game_init() {
 
     // Init sub-systems
     input_init(state.window);
+    if (!renderer_init(state.window)) {
+        return false;
+    }
 
     return true;
 }
 
 void game_quit() {
+    renderer_quit();
+
     SDL_DestroyWindow(state.window);
     SDL_Quit();
 
