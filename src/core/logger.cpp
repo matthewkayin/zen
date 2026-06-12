@@ -1,5 +1,6 @@
 #include "logger.h"
 
+#include "core/asserts.h"
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
@@ -52,4 +53,8 @@ void logger_output(LogLevel log_level, const char* message, ...) {
     if (logfile) {
         fprintf(logfile, "[%s]: %s\n", LOG_PREFIX[log_level], out_message);
     }
+}
+
+void logger_report_assertion_failure(const char* expression, const char* message, const char* file, int line) {
+    logger_output(LOG_LEVEL_ERROR, "Assertion failure: %s, message: '%s', in file %s line %d", expression, message, file, line);
 }

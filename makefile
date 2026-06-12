@@ -8,7 +8,7 @@ OBJ_DIR         := obj
 SRC_DIR         := src
 
 CXX             := clang++
-CXX_FLAGS       := -std=c++11 -Wall -Wextra -Wshadow -fno-exceptions
+CXX_FLAGS       := -std=c++14 -Wall -Wextra -Wshadow -fno-exceptions
 LD_FLAGS        :=
 
 INCLUDE_FLAGS   := -Isrc -Ivendor
@@ -25,7 +25,7 @@ ifeq ($(RELEASE),1)
 else
 	CXX_FLAGS += -g -O0
 	LD_FLAGS += -g
-	DEFINES += -D_DEBUG
+	DEFINES += -DZEN_DEBUG
 endif
 
 # ------------------------------------------------------------------------------

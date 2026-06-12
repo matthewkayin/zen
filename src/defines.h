@@ -18,12 +18,10 @@
 #endif
 
 // Debug configuration
-#if _DEBUG
-    #define ZEN_DEBUG 1
+#if ZEN_DEBUG
     #define ZEN_RELEASE 0
     #define ZEN_BUILD_STR "Debug"
 #else
-    #define ZEN_DEBUG 0
     #define ZEN_RELEASE 1
     #define ZEN_BUILD_STR "Release"
 #endif

@@ -2,6 +2,7 @@
 #include "core/input.h"
 #include "renderer/frontend.h"
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 
 struct GameState {
     SDL_Window* window;
@@ -55,10 +56,15 @@ bool game_init() {
         return false;
     }
 
+    // Check if Vulkan is supported
+    if (!SDL_Vulkan_LoadLibrary(nullptr)) {
+        log_error("Failed to load Vulkan library: %s", SDL_GetError());
+    }
+
     // Create window
     const int window_width = 1280;
     const int window_height = 720;
-    state.window = SDL_CreateWindow(ZEN_APP_NAME, window_width, window_height, 0);
+    state.window = SDL_CreateWindow(ZEN_APP_NAME, window_width, window_height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     if (state.window == nullptr) {
         log_error("Error creating window: %s", SDL_GetError());
         return false;
