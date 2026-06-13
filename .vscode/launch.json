@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Game",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/zen",
+            "args": [],
+            "cwd": "${workspaceFolder}/bin",
+            "windows": {
+                "program": "${workspaceFolder}/bin/zen.exe",
+                "console": "integratedTerminal"
+            },
+        },
+    ]
+}

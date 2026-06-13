@@ -57,8 +57,7 @@ bool vulkan_device_create(VulkanContext* context) {
     for (uint32_t index = 0; index < indices.size(); index++) {
         queue_create_infos[index].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queue_create_infos[index].queueFamilyIndex = indices[index];
-        queue_create_infos[index].queueCount =
-            indices[index] == context->device.graphics_queue_index ? 2  : 1;
+        queue_create_infos[index].queueCount = 1;
         queue_create_infos[index].flags = 0;
         queue_create_infos[index].pNext = nullptr;
         queue_create_infos[index].pQueuePriorities = &queue_priority;
@@ -179,7 +178,7 @@ void vulkan_device_query_swapchain_support(
         nullptr));
     if (out_swapchain_support_info->present_mode_count != 0) {
         if (!out_swapchain_support_info->present_modes) {
-            out_swapchain_support_info->present_modes = (VkPresentModeKHR*)malloc(out_swapchain_support_info->present_mode_count);
+            out_swapchain_support_info->present_modes = (VkPresentModeKHR*)malloc(out_swapchain_support_info->present_mode_count * sizeof(VkPresentModeKHR));
         }
         VK_CHECK(vkGetPhysicalDeviceSurfacePresentModesKHR(
             physical_device,
@@ -187,6 +186,32 @@ void vulkan_device_query_swapchain_support(
             &out_swapchain_support_info->present_mode_count,
             out_swapchain_support_info->present_modes));
     }
+}
+
+bool vulkan_device_detect_depth_format(VulkanDevice* device) {
+    // Format candidates
+    const uint32_t candidate_count = 3;
+    VkFormat candidates[candidate_count] = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT
+    };
+
+    uint32_t flags = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    for (uint32_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(device->physical_device, candidates[candidate_index], &properties);
+
+        const bool device_supports_depth_format =
+            ((properties.linearTilingFeatures & flags) == flags) ||
+            ((properties.optimalTilingFeatures & flags) == flags);
+        if (device_supports_depth_format) {
+            device->depth_format = candidates[candidate_index];
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool vulkan_select_physical_device(VulkanContext* context) {

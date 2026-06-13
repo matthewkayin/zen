@@ -2,8 +2,8 @@
 
 #include "defines.h"
 #include "core/logger.h"
-#include "vulkan/vulkan_core.h"
 #include "renderer/vulkan/device.h"
+#include "renderer/vulkan/swapchain.h"
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
 #include <cstring>
@@ -13,6 +13,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
     VkDebugUtilsMessageTypeFlagsEXT message_types,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data);
+
+uint32_t vulkan_context_find_memory_index(uint32_t type_filter, uint32_t property_flags);
 
 bool RendererBackendVulkan::init() {
     // I'm probably not going to use this,
@@ -132,11 +134,28 @@ bool RendererBackendVulkan::init() {
         return false;
     }
 
+    // Init swapchain
+    vulkan_swapchain_create(
+        &m_context,
+        m_context.framebuffer_width,
+        m_context.framebuffer_height,
+        &m_context.swapchain);
+
     log_info("Vulkan backend initialized successfully.");
     return true;
 }
 
 void RendererBackendVulkan::quit() {
+    log_info("Destroying Vulkan swapchain...");
+    vulkan_swapchain_destroy(&m_context, &m_context.swapchain);
+
+    log_info("Destroying Vulkan device...");
+    vulkan_device_destroy(&m_context);
+
+    log_debug("Destroying Vulkan surface...");
+    SDL_Vulkan_DestroySurface(m_context.instance, m_context.surface, m_context.allocator);
+    m_context.surface = nullptr;
+
 #ifdef ZEN_DEBUG
     log_debug("Destroying Vulkan debugger...");
     if (m_context.debug_messenger) {
@@ -171,19 +190,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
     switch (message_severity) {
         default:
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: {
-            log_error("VK_DEBUG - %s", callback_data->pMessage);
+            log_error(callback_data->pMessage);
             break;
         }
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: {
-            log_warn("VK_DEBUG - %s", callback_data->pMessage);
+            log_warn(callback_data->pMessage);
             break;
         }
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: {
-            log_info("VK_DEBUG - %s", callback_data->pMessage);
+            log_info(callback_data->pMessage);
             break;
         }
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: {
-            log_debug("VK_DEBUG - %s", callback_data->pMessage);
+            log_debug(callback_data->pMessage);
             break;
         }
     }
