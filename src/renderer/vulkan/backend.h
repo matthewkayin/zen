@@ -1,13 +1,7 @@
 #pragma once
 
-#include "core/asserts.h"
+#include "renderer/vulkan/types.h"
 #include "renderer/types.h"
-#include <vulkan/vulkan.h>
-
-#define VK_CHECK(expr)              \
- {                                  \
-    ZEN_ASSERT(expr == VK_SUCCESS); \
- }
 
 class RendererBackendVulkan : public IRendererBackend {
 public:
@@ -20,6 +14,5 @@ public:
     bool begin_frame(double delta_time) override;
     bool end_frame(double delta_time) override;
 private:
-    VkInstance m_instance;
-    VkDebugUtilsMessengerEXT m_debug_messenger;
+    VulkanContext m_context;
 };

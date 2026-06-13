@@ -3,6 +3,7 @@
 #include "defines.h"
 #include "core/logger.h"
 #include "vulkan/vulkan_core.h"
+#include "renderer/vulkan/device.h"
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
 #include <cstring>
@@ -14,6 +15,10 @@ VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
     void* user_data);
 
 bool RendererBackendVulkan::init() {
+    // I'm probably not going to use this,
+    // but it doesn't hurt to have it in place
+    m_context.allocator = nullptr;
+
     // Vulkan application info
     VkApplicationInfo app_info{};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -86,7 +91,7 @@ bool RendererBackendVulkan::init() {
     create_info.ppEnabledLayerNames = layer_names.data();
 
     // Create instance
-    VkResult result = vkCreateInstance(&create_info, nullptr, &m_instance);
+    VkResult result = vkCreateInstance(&create_info, m_context.allocator, &m_context.instance);
     if (result != VK_SUCCESS) {
         log_error("vkCreateInstance failed with result %u", result);
         return false;
@@ -109,11 +114,23 @@ bool RendererBackendVulkan::init() {
     debug_create_info.pUserData = nullptr;
 
     PFN_vkCreateDebugUtilsMessengerEXT createDebugUtilsMessenger =
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_context.instance, "vkCreateDebugUtilsMessengerEXT");
     ZEN_ASSERT_MESSAGE(createDebugUtilsMessenger, "Failed to load createDebugUtilsMessenger function pointer.");
-    VK_CHECK(createDebugUtilsMessenger(m_instance, &debug_create_info, nullptr, &m_debug_messenger));
+    VK_CHECK(createDebugUtilsMessenger(m_context.instance, &debug_create_info, m_context.allocator, &m_context.debug_messenger));
     log_debug("Vulkan debugger created.");
 #endif
+
+    // Create surface
+    if (!SDL_Vulkan_CreateSurface(m_window, m_context.instance, m_context.allocator, &m_context.surface)) {
+        log_error("Failed to create surface %s", SDL_GetError());
+        return false;
+    }
+
+    // Init device
+    if (!vulkan_device_create(&m_context)) {
+        log_error("Failed to create device.");
+        return false;
+    }
 
     log_info("Vulkan backend initialized successfully.");
     return true;
@@ -122,15 +139,15 @@ bool RendererBackendVulkan::init() {
 void RendererBackendVulkan::quit() {
 #ifdef ZEN_DEBUG
     log_debug("Destroying Vulkan debugger...");
-    if (m_debug_messenger) {
+    if (m_context.debug_messenger) {
         PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtilsMessenger =
-            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
-        destroyDebugUtilsMessenger(m_instance, m_debug_messenger, nullptr);
+            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_context.instance, "vkDestroyDebugUtilsMessengerEXT");
+        destroyDebugUtilsMessenger(m_context.instance, m_context.debug_messenger, nullptr);
     }
 #endif
 
     log_debug("Destroying Vulkan instance...");
-    vkDestroyInstance(m_instance, nullptr);
+    vkDestroyInstance(m_context.instance, nullptr);
 }
 
 void RendererBackendVulkan::on_resized(uint32_t width, uint32_t height) {
@@ -154,19 +171,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
     switch (message_severity) {
         default:
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: {
-            log_error(callback_data->pMessage);
+            log_error("VK_DEBUG - %s", callback_data->pMessage);
             break;
         }
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: {
-            log_warn(callback_data->pMessage);
+            log_warn("VK_DEBUG - %s", callback_data->pMessage);
             break;
         }
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: {
-            log_info(callback_data->pMessage);
+            log_info("VK_DEBUG - %s", callback_data->pMessage);
             break;
         }
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: {
-            log_debug(callback_data->pMessage);
+            log_debug("VK_DEBUG - %s", callback_data->pMessage);
             break;
         }
     }
