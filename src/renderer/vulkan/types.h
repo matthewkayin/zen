@@ -29,6 +29,8 @@ struct VulkanDevice {
     VkQueue present_queue;
     VkQueue transfer_queue;
 
+    VkCommandPool graphics_command_pool;
+
     VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceFeatures features;
     VkPhysicalDeviceMemoryProperties memory_properties;
@@ -44,6 +46,24 @@ struct VulkanImage {
     uint32_t height;
 };
 
+enum class VulkanRenderpassState {
+    READY,
+    RECORDING,
+    IN_RENDER_PASS,
+    RECORDING_ENDED,
+    SUBMITTED,
+    NOT_ALLOCATED
+};
+
+struct VulkanRenderpass {
+    VkRenderPass handle;
+    float x, y, w, h;
+    float r, g, b, a;
+    float depth;
+    uint32_t stencil;
+    VulkanRenderpassState state;
+};
+
 struct VulkanSwapchain {
     VkSurfaceFormatKHR image_format;
     uint8_t max_frames_in_flight;
@@ -55,12 +75,28 @@ struct VulkanSwapchain {
     VulkanImage depth_attachment;
 };
 
+enum class VulkanCommandBufferState {
+    READY,
+    RECORDING,
+    IN_RENDER_PASS,
+    RECORDING_ENDED,
+    SUBMITTED,
+    NOT_ALLOCATED
+};
+
+struct VulkanCommandBuffer {
+    VkCommandBuffer handle;
+    VulkanCommandBufferState state;
+};
+
 struct VulkanContext {
     VkInstance instance;
     VkAllocationCallbacks* allocator;
     VkSurfaceKHR surface;
     VulkanDevice device;
     VulkanSwapchain swapchain;
+    VulkanRenderpass main_renderpass;
+    VulkanCommandBuffer* graphics_command_buffers;
 
     uint32_t image_index;
     uint32_t current_frame;

@@ -4,6 +4,8 @@
 #include "core/logger.h"
 #include "renderer/vulkan/device.h"
 #include "renderer/vulkan/swapchain.h"
+#include "renderer/vulkan/renderpass.h"
+#include "renderer/vulkan/command_buffer.h"
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
 #include <cstring>
@@ -13,8 +15,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
     VkDebugUtilsMessageTypeFlagsEXT message_types,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
     void* user_data);
-
-uint32_t vulkan_context_find_memory_index(uint32_t type_filter, uint32_t property_flags);
 
 bool RendererBackendVulkan::init() {
     // I'm probably not going to use this,
@@ -141,23 +141,51 @@ bool RendererBackendVulkan::init() {
         m_context.framebuffer_height,
         &m_context.swapchain);
 
+    // Renderpass
+    vulkan_renderpass_create(
+        &m_context,
+        &m_context.main_renderpass,
+        0.0f, 0.0f, m_context.framebuffer_width, m_context.framebuffer_height,
+        0.0f, 0.0f, 0.2f, 1.0f,
+        1.0f,
+        0);
+
+    create_command_buffers();
+
     log_info("Vulkan backend initialized successfully.");
     return true;
 }
 
 void RendererBackendVulkan::quit() {
+    // Command buffers
+    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+        if (m_context.graphics_command_buffers[index].handle) {
+            vulkan_command_buffer_free(
+                &m_context,
+                m_context.device.graphics_command_pool,
+                &m_context.graphics_command_buffers[index]);
+            m_context.graphics_command_buffers[index].handle = nullptr;
+        }
+    }
+    free(m_context.graphics_command_buffers);
+    m_context.graphics_command_buffers = nullptr;
+
+    // Renderpass
+    log_info("Destroying Vulkan renderpass...");
+    vulkan_renderpass_destroy(&m_context, &m_context.main_renderpass);
+
     log_info("Destroying Vulkan swapchain...");
     vulkan_swapchain_destroy(&m_context, &m_context.swapchain);
 
     log_info("Destroying Vulkan device...");
     vulkan_device_destroy(&m_context);
 
-    log_debug("Destroying Vulkan surface...");
+    log_info("Destroying Vulkan surface...");
     SDL_Vulkan_DestroySurface(m_context.instance, m_context.surface, m_context.allocator);
     m_context.surface = nullptr;
 
 #ifdef ZEN_DEBUG
-    log_debug("Destroying Vulkan debugger...");
+    log_info("Destroying Vulkan debugger...");
     if (m_context.debug_messenger) {
         PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtilsMessenger =
             (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_context.instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -165,7 +193,7 @@ void RendererBackendVulkan::quit() {
     }
 #endif
 
-    log_debug("Destroying Vulkan instance...");
+    log_info("Destroying Vulkan instance...");
     vkDestroyInstance(m_context.instance, nullptr);
 }
 
@@ -180,6 +208,34 @@ bool RendererBackendVulkan::begin_frame(double delta_time) {
 bool RendererBackendVulkan::end_frame(double delta_time) {
     return true;
 }
+
+// PRIVATE
+
+void RendererBackendVulkan::create_command_buffers() {
+    if (!m_context.graphics_command_buffers) {
+        m_context.graphics_command_buffers = (VulkanCommandBuffer*)malloc(m_context.swapchain.image_count * sizeof(VulkanCommandBuffer));
+        memset(m_context.graphics_command_buffers, 0, m_context.swapchain.image_count * sizeof(VulkanCommandBuffer));
+    }
+
+    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+        if (m_context.graphics_command_buffers[index].handle) {
+            vulkan_command_buffer_free(
+                &m_context,
+                m_context.device.graphics_command_pool,
+                &m_context.graphics_command_buffers[index]);
+        }
+        memset(&m_context.graphics_command_buffers[index], 0, sizeof(VulkanCommandBuffer));
+        vulkan_command_buffer_allocate(
+            &m_context,
+            m_context.device.graphics_command_pool,
+            true,
+            &m_context.graphics_command_buffers[index]);
+    }
+
+    log_info("Vulkan command buffers created.");
+}
+
+// INTERNAL
 
 VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,

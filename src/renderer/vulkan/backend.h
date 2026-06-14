@@ -14,5 +14,7 @@ public:
     bool begin_frame(double delta_time) override;
     bool end_frame(double delta_time) override;
 private:
+    void create_command_buffers();
+
     VulkanContext m_context;
 };
