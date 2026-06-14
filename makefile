@@ -59,17 +59,29 @@ else
 		PLATFORM := macos
 		LIB_DIR  := lib/macos
 
-		LDFLAGS += \
+		LD_FLAGS += \
 			-L$(LIB_DIR) \
+			-lvulkan \
 			-F$(LIB_DIR) \
 			-framework SDL3
+		DEFINES += \
+			-Wno-deprecated-declarations
+
+		# rpath
+		ifeq ($(RELEASE),1)
+			LD_FLAGS += -Wl,-rpath,.
+		else
+			# In debug mode, the rpath points to ../lib/macos
+			# This way we don't have to libcopy
+			LD_FLAGS += -Wl,-rpath,../$(LIB_DIR)
+		endif
 	endif
 
 	ifeq ($(UNAME_S),Linux)
 		PLATFORM := linux
 		LIB_DIR  := lib/linux64
 
-		LDFLAGS += \
+		LD_FLAGS += \
 			-lSDL3
 	endif
 
@@ -126,7 +138,7 @@ $(OBJ_DIR)/%.cpp.o: %.cpp
 
 .PHONY: link
 link: scaffold $(OBJ_FILES)
-	@echo Linker flags $(LINKER_FLAGS)
+	@echo Linker flags $(LD_FLAGS)
 	@echo Linking $(ASSEMBLY)...
 ifeq ($(PLATFORM),win64)
 	@$(CXX) $(OBJ_FILES) -o $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION) $(LD_FLAGS)
@@ -160,7 +172,6 @@ ifeq ($(PLATFORM),win64)
 	-@setlocal enableextensions && xcopy $(LIB_DIR) $(BUILD_DIR) /Y
 endif
 ifeq ($(PLATFORM),macos)
-	-@cp $(LIB_DIR)/*.a $(BUILD_DIR)/
 	-@cp $(LIB_DIR)/*.dylib $(BUILD_DIR)/
 endif
 ifeq ($(PLATFORM),linux)

@@ -20,8 +20,7 @@ bool logger_init() {
     // Open logfile
     char logfile_path[256];
     time_t _time = time(NULL);
-    tm _tm;
-    localtime_s(&_tm, &_time);
+    tm _tm = *localtime(&_time);
     sprintf(logfile_path, "%s/%d-%02d-%02dT%02d%02d%02d.log", log_folder_path, _tm.tm_year + 1900, _tm.tm_mon + 1, _tm.tm_mday, _tm.tm_hour, _tm.tm_min, _tm.tm_sec);
 
     logfile = fopen(logfile_path, "w");
