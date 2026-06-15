@@ -41,6 +41,7 @@ bool vulkan_swapchain_acquire_next_image_index(
         VkSemaphore image_available_semaphore,
         VkFence fence,
         uint32_t* out_image_index) {
+
     VkResult result = vkAcquireNextImageKHR(context->device.logical_device, swapchain->handle, timeout_ns, image_available_semaphore, fence, out_image_index);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // Trigger swapchain recreation, then boot out of the render loop
@@ -58,7 +59,6 @@ bool vulkan_swapchain_acquire_next_image_index(
 void vulkan_swapchain_present(
         VulkanContext* context,
         VulkanSwapchain* swapchain,
-        VkQueue graphics_queue,
         VkQueue present_queue,
         VkSemaphore render_complete_semaphore,
         uint32_t present_image_index) {
@@ -78,6 +78,8 @@ void vulkan_swapchain_present(
     } else if (result != VK_SUCCESS) {
         log_error("Failed to present swapchain image.");
     }
+
+    context->current_frame = (context->current_frame + 1) % swapchain->max_frames_in_flight;
 }
 
 void vulkan_swapchain_create_internal(
@@ -85,6 +87,7 @@ void vulkan_swapchain_create_internal(
         uint32_t width,
         uint32_t height,
         VulkanSwapchain* swapchain) {
+
     VkExtent2D swapchain_extent = {
         .width = width,
         .height = height
@@ -97,7 +100,6 @@ void vulkan_swapchain_create_internal(
         VkSurfaceFormatKHR format = context->device.swapchain_support_info.formats[format_index];
         if (format.format == VK_FORMAT_B8G8R8A8_UNORM &&
                 format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-            swapchain->image_format = format;
             break;
         }
     }
@@ -105,6 +107,7 @@ void vulkan_swapchain_create_internal(
     if (format_index == context->device.swapchain_support_info.format_count) {
         format_index = 0;
     }
+    swapchain->image_format = context->device.swapchain_support_info.formats[format_index];
 
     // Choose a present mode
     VkPresentModeKHR selected_present_mode = VK_PRESENT_MODE_FIFO_KHR;
@@ -116,7 +119,7 @@ void vulkan_swapchain_create_internal(
         }
     }
 
-    // Require swapchain support
+    // Requery swapchain support
     vulkan_device_query_swapchain_support(
         context->device.physical_device,
         context->surface,
@@ -232,6 +235,8 @@ void vulkan_swapchain_create_internal(
 }
 
 void vulkan_swapchain_destroy_internal(VulkanContext* context, VulkanSwapchain* swapchain) {
+    vkDeviceWaitIdle(context->device.logical_device);
+
     vulkan_image_destroy(context, &swapchain->depth_attachment);
 
     // Only destroy the views, not the images, since those are created by the swapchain

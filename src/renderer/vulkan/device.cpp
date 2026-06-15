@@ -278,9 +278,9 @@ bool vulkan_select_physical_device(VulkanContext* context) {
                 VK_VERSION_MINOR(properties.driverVersion),
                 VK_VERSION_PATCH(properties.driverVersion));
             log_info("Vulkan API version: %d.%d.%d",
-                VK_VERSION_MAJOR(properties.apiVersion),
-                VK_VERSION_MINOR(properties.apiVersion),
-                VK_VERSION_PATCH(properties.apiVersion));
+                VK_API_VERSION_MAJOR(properties.apiVersion),
+                VK_API_VERSION_MINOR(properties.apiVersion),
+                VK_API_VERSION_PATCH(properties.apiVersion));
 
             // Device memory info
             for (uint32_t heap_index = 0; heap_index < memory_properties.memoryHeapCount; heap_index++) {

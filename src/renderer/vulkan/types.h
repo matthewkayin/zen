@@ -64,6 +64,13 @@ struct VulkanRenderpass {
     VulkanRenderpassState state;
 };
 
+struct VulkanFramebuffer {
+    VkFramebuffer handle;
+    uint32_t attachment_count;
+    VkImageView* attachments;
+    VulkanRenderpass* renderpass;
+};
+
 struct VulkanSwapchain {
     VkSurfaceFormatKHR image_format;
     uint8_t max_frames_in_flight;
@@ -73,6 +80,8 @@ struct VulkanSwapchain {
     VkImageView* views;
 
     VulkanImage depth_attachment;
+
+    VulkanFramebuffer* framebuffers;
 };
 
 enum class VulkanCommandBufferState {
@@ -89,6 +98,12 @@ struct VulkanCommandBuffer {
     VulkanCommandBufferState state;
 };
 
+struct VulkanFence {
+    // TODO: move this into a class and use vkGetFenceStatus for is_signaled?
+    VkFence handle;
+    bool is_signaled;
+};
+
 struct VulkanContext {
     VkInstance instance;
     VkAllocationCallbacks* allocator;
@@ -98,12 +113,23 @@ struct VulkanContext {
     VulkanRenderpass main_renderpass;
     VulkanCommandBuffer* graphics_command_buffers;
 
+    VkSemaphore* image_available_semaphores;
+    VkSemaphore* queue_complete_semaphores;
+
+    uint32_t inflight_fence_count;
+    VulkanFence* inflight_fences;
+
+    // Holds pointers to fences which exist and are owned elsewhere
+    VulkanFence** inflight_images;
+
     uint32_t image_index;
     uint32_t current_frame;
     bool is_recreating_swapchain;
 
     uint32_t framebuffer_width;
     uint32_t framebuffer_height;
+    uint64_t framebuffer_size_generation;
+    uint64_t framebuffer_size_last_generation;
 
     VkDebugUtilsMessengerEXT debug_messenger;
 };

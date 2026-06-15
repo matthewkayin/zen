@@ -15,6 +15,10 @@ public:
     bool end_frame(double delta_time) override;
 private:
     void create_command_buffers();
+    void regenerate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass);
+    bool recreate_swapchain();
 
     VulkanContext m_context;
+    uint32_t m_cached_framebuffer_width;
+    uint32_t m_cached_framebuffer_height;
 };

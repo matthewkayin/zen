@@ -6,6 +6,9 @@
 
 static IRendererBackend* backend = nullptr;
 
+bool renderer_begin_frame(double delta_time);
+bool renderer_end_frame(double delta_time);
+
 bool renderer_init(SDL_Window* window) {
     backend = renderer_backend_create(RENDERER_BACKEND_TYPE_VULKAN, window);
     if (backend == nullptr) {
@@ -27,14 +30,13 @@ void renderer_quit() {
     renderer_backend_destroy(backend);
 }
 
-bool renderer_begin_frame(double delta_time) {
-    return backend->begin_frame(delta_time);
-}
+void renderer_on_resized(uint32_t width, uint32_t height) {
+    if (!backend) {
+        log_warn("renderer_on_resized - backend does not exist.");
+        return;
+    }
 
-bool renderer_end_frame(double delta_time) {
-    bool result = backend->end_frame(delta_time);
-    backend->m_frame_number++;
-    return result;
+    backend->on_resized(width, height);
 }
 
 bool renderer_draw_frame(RenderPacket* packet) {
@@ -49,4 +51,14 @@ bool renderer_draw_frame(RenderPacket* packet) {
     }
 
     return true;
+}
+
+bool renderer_begin_frame(double delta_time) {
+    return backend->begin_frame(delta_time);
+}
+
+bool renderer_end_frame(double delta_time) {
+    bool result = backend->end_frame(delta_time);
+    backend->m_frame_number++;
+    return result;
 }
