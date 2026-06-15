@@ -18,7 +18,7 @@ bool vulkan_swapchain_acquire_next_image_index(
     VulkanContext* context,
     VulkanSwapchain* swapchain,
     uint64_t timeout_ns,
-    VkSemaphore image_available_semaphore,
+    VkSemaphore acquire_semaphore,
     VkFence fence,
     uint32_t* out_image_index);
 void vulkan_swapchain_present(

@@ -98,12 +98,6 @@ struct VulkanCommandBuffer {
     VulkanCommandBufferState state;
 };
 
-struct VulkanFence {
-    // TODO: move this into a class and use vkGetFenceStatus for is_signaled?
-    VkFence handle;
-    bool is_signaled;
-};
-
 struct VulkanContext {
     VkInstance instance;
     VkAllocationCallbacks* allocator;
@@ -113,17 +107,12 @@ struct VulkanContext {
     VulkanRenderpass main_renderpass;
     VulkanCommandBuffer* graphics_command_buffers;
 
-    VkSemaphore* image_available_semaphores;
-    VkSemaphore* queue_complete_semaphores;
-
-    uint32_t inflight_fence_count;
-    VulkanFence* inflight_fences;
-
-    // Holds pointers to fences which exist and are owned elsewhere
-    VulkanFence** inflight_images;
+    VkSemaphore* acquire_semaphores;
+    VkSemaphore* submit_semaphores;
+    VkFence* frame_fences;
 
     uint32_t image_index;
-    uint32_t current_frame;
+    uint32_t frame_index;
     bool is_recreating_swapchain;
 
     uint32_t framebuffer_width;

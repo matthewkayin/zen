@@ -38,11 +38,11 @@ bool vulkan_swapchain_acquire_next_image_index(
         VulkanContext* context,
         VulkanSwapchain* swapchain,
         uint64_t timeout_ns,
-        VkSemaphore image_available_semaphore,
+        VkSemaphore acquire_semaphore,
         VkFence fence,
         uint32_t* out_image_index) {
 
-    VkResult result = vkAcquireNextImageKHR(context->device.logical_device, swapchain->handle, timeout_ns, image_available_semaphore, fence, out_image_index);
+    VkResult result = vkAcquireNextImageKHR(context->device.logical_device, swapchain->handle, timeout_ns, acquire_semaphore, fence, out_image_index);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // Trigger swapchain recreation, then boot out of the render loop
         vulkan_swapchain_recreate(context, context->framebuffer_width, context->framebuffer_height, swapchain);
@@ -79,7 +79,7 @@ void vulkan_swapchain_present(
         log_error("Failed to present swapchain image.");
     }
 
-    context->current_frame = (context->current_frame + 1) % swapchain->max_frames_in_flight;
+    context->frame_index = (context->frame_index + 1) % swapchain->max_frames_in_flight;
 }
 
 void vulkan_swapchain_create_internal(
@@ -182,7 +182,7 @@ void vulkan_swapchain_create_internal(
         &swapchain->handle));
 
     // Start with 0 frame index
-    context->current_frame = 0;
+    context->frame_index = 0;
 
     // Images
     swapchain->image_count = 0;

@@ -7,8 +7,8 @@
 #include "renderer/vulkan/renderpass.h"
 #include "renderer/vulkan/command_buffer.h"
 #include "renderer/vulkan/framebuffer.h"
-#include "renderer/vulkan/fence.h"
 #include "renderer/vulkan/utils.h"
+#include "vulkan/vulkan_core.h"
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
 #include <cstring>
@@ -168,34 +168,47 @@ bool RendererBackendVulkan::init() {
     // Create command buffers
     create_command_buffers();
 
-    // Create sync objects
-    m_context.image_available_semaphores = (VkSemaphore*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VkSemaphore));
-    m_context.queue_complete_semaphores = (VkSemaphore*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VkSemaphore));
-    m_context.inflight_fences = (VulkanFence*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VulkanFence));
-
+    // Create acquire semaphores
+    m_context.acquire_semaphores = (VkSemaphore*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VkSemaphore));
     for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
         VkSemaphoreCreateInfo semaphore_create_info{};
         semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        vkCreateSemaphore(
-            m_context.device.logical_device,
-            &semaphore_create_info,
-            m_context.allocator,
-            &m_context.image_available_semaphores[index]);
-        vkCreateSemaphore(
-            m_context.device.logical_device,
-            &semaphore_create_info,
-            m_context.allocator,
-            &m_context.queue_complete_semaphores[index]);
 
+        VK_CHECK(vkCreateSemaphore(
+            m_context.device.logical_device,
+            &semaphore_create_info,
+            m_context.allocator,
+            &m_context.acquire_semaphores[index]));
+    }
+
+    // Create submit semaphores
+    m_context.submit_semaphores = (VkSemaphore*)malloc(m_context.swapchain.image_count * sizeof(VkSemaphore));
+    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+        VkSemaphoreCreateInfo semaphore_create_info{};
+        semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VK_CHECK(vkCreateSemaphore(
+            m_context.device.logical_device,
+            &semaphore_create_info,
+            m_context.allocator,
+            &m_context.submit_semaphores[index]));
+    }
+
+    // Create frame fences
+    m_context.frame_fences = (VkFence*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VkFence));
+    for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
         // Create the fence in a signaled state, indicating that the first frame has already been renderered
         // This prevents the application from waiting indefinitely for the first frame to render since it
         // cannot be rendered until a frame is renderered before it
-        vulkan_fence_create(&m_context, true, &m_context.inflight_fences[index]);
-    }
+        VkFenceCreateInfo fence_create_info{};
+        fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    m_context.inflight_images = (VulkanFence**)malloc(m_context.swapchain.image_count * sizeof(VulkanFence*));
-    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
-        m_context.inflight_images[index] = nullptr;
+        VK_CHECK(vkCreateFence(
+            m_context.device.logical_device,
+            &fence_create_info,
+            m_context.allocator,
+            &m_context.frame_fences[index]));
     }
 
     log_info("Vulkan backend initialized successfully.");
@@ -206,32 +219,34 @@ void RendererBackendVulkan::quit() {
     // Wait for the device to finish before shutting down
     vkDeviceWaitIdle(m_context.device.logical_device);
 
-    // Semaphores and fences
+    // Destroy acquire semaphores
     for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
-        if (m_context.image_available_semaphores[index]) {
-            vkDestroySemaphore(
-                m_context.device.logical_device,
-                m_context.image_available_semaphores[index],
-                m_context.allocator);
-            m_context.image_available_semaphores[index] = nullptr;
-        }
-        if (m_context.queue_complete_semaphores[index]) {
-            vkDestroySemaphore(
-                m_context.device.logical_device,
-                m_context.queue_complete_semaphores[index],
-                m_context.allocator);
-            m_context.queue_complete_semaphores[index] = nullptr;
-        }
-        vulkan_fence_destroy(&m_context, &m_context.inflight_fences[index]);
+        vkDestroySemaphore(
+            m_context.device.logical_device,
+            m_context.acquire_semaphores[index],
+            m_context.allocator);
+        m_context.acquire_semaphores[index] = nullptr;
     }
-    free(m_context.image_available_semaphores);
-    m_context.image_available_semaphores = nullptr;
-    free(m_context.queue_complete_semaphores);
-    m_context.queue_complete_semaphores = nullptr;
-    free(m_context.inflight_fences);
-    m_context.inflight_fences = nullptr;
-    free(m_context.inflight_images);
-    m_context.inflight_images = nullptr;
+    free(m_context.acquire_semaphores);
+    m_context.acquire_semaphores = nullptr;
+
+    // Destroy submit semaphores
+    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+        vkDestroySemaphore(
+            m_context.device.logical_device,
+            m_context.submit_semaphores[index],
+            m_context.allocator);
+        m_context.submit_semaphores[index] = nullptr;
+    }
+    free(m_context.submit_semaphores);
+    m_context.submit_semaphores = nullptr;
+
+    // Destroy frame fences
+    for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
+        vkDestroyFence(m_context.device.logical_device, m_context.frame_fences[index], m_context.allocator);
+    }
+    free(m_context.frame_fences);
+    m_context.frame_fences = nullptr;
 
     // Command buffers
     for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
@@ -322,10 +337,18 @@ bool RendererBackendVulkan::begin_frame(double delta_time) {
     }
 
     // Wait for execution of the current frame to complete
-    if (!vulkan_fence_wait(&m_context, &m_context.inflight_fences[m_context.current_frame], UINT64_MAX)) {
-        log_warn("RendererBackendVulkan::begin_frame - In-flight fence wait failure.");
+    VkResult fence_wait_result = vkWaitForFences(
+        m_context.device.logical_device,
+        1,
+        &m_context.frame_fences[m_context.frame_index],
+        VK_TRUE,
+        UINT64_MAX);
+    if (fence_wait_result != VK_SUCCESS) {
+        log_warn("RendererBackendVulkan::begin_frame - Fence wait failed with code %s", vulkan_result_str(fence_wait_result));
         return false;
     }
+    VK_CHECK(vkResetFences(
+        m_context.device.logical_device, 1, &m_context.frame_fences[m_context.frame_index]));
 
     // Acquire the next image from the swap chain
     // Pass along the semaphore that should be signaled when this completes
@@ -334,7 +357,7 @@ bool RendererBackendVulkan::begin_frame(double delta_time) {
             &m_context,
             &m_context.swapchain,
             UINT64_MAX,
-            m_context.image_available_semaphores[m_context.current_frame],
+            m_context.acquire_semaphores[m_context.frame_index],
             nullptr,
             &m_context.image_index)) {
         return false;
@@ -382,34 +405,23 @@ bool RendererBackendVulkan::end_frame(double delta_time) {
     vulkan_renderpass_end(command_buffer, &m_context.main_renderpass);
     vulkan_command_buffer_end(command_buffer);
 
-    // Make sure the previous frame is not using this image
-    if (m_context.inflight_images[m_context.image_index] != VK_NULL_HANDLE) {
-        vulkan_fence_wait(&m_context, m_context.inflight_images[m_context.image_index], UINT64_MAX);
-    }
-
-    // Mark the image fence as in-use by this frame
-    m_context.inflight_images[m_context.image_index] = &m_context.inflight_fences[m_context.current_frame];
-
-    // Reset the fence for use on the next frame
-    vulkan_fence_reset(&m_context, &m_context.inflight_fences[m_context.current_frame]);
-
     VkPipelineStageFlags pipeline_stage_flags[1] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
     VkSubmitInfo submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &command_buffer->handle;
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores = &m_context.queue_complete_semaphores[m_context.current_frame];
     submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &m_context.image_available_semaphores[m_context.current_frame];
+    submit_info.pWaitSemaphores = &m_context.acquire_semaphores[m_context.frame_index];
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &m_context.submit_semaphores[m_context.image_index];
     submit_info.pWaitDstStageMask = pipeline_stage_flags;
 
     VkResult result = vkQueueSubmit(
         m_context.device.graphics_queue,
         1,
         &submit_info,
-        m_context.inflight_fences[m_context.current_frame].handle);
+        m_context.frame_fences[m_context.frame_index]);
     if (result != VK_SUCCESS) {
         log_error("RendererBackendVulkan::end_frame - vkQueueSubmit failed with result %s", vulkan_result_str(result));
         return false;
@@ -422,7 +434,7 @@ bool RendererBackendVulkan::end_frame(double delta_time) {
         &m_context,
         &m_context.swapchain,
         m_context.device.present_queue,
-        m_context.queue_complete_semaphores[m_context.current_frame],
+        m_context.submit_semaphores[m_context.image_index],
         m_context.image_index);
 
     return true;
@@ -491,11 +503,6 @@ bool RendererBackendVulkan::recreate_swapchain() {
 
     // Wait for any operations to complete
     vkDeviceWaitIdle(m_context.device.logical_device);
-
-    // Clear out the inflight images
-    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
-        m_context.inflight_images[index] = nullptr;
-    }
 
     // Requery support
     vulkan_device_query_swapchain_support(
