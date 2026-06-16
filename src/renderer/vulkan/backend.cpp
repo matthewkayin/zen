@@ -8,6 +8,7 @@
 #include "renderer/vulkan/command_buffer.h"
 #include "renderer/vulkan/framebuffer.h"
 #include "renderer/vulkan/utils.h"
+#include "renderer/vulkan/shaders/object.h"
 #include "vulkan/vulkan_core.h"
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
@@ -211,6 +212,12 @@ bool RendererBackendVulkan::init() {
             &m_context.frame_fences[index]));
     }
 
+    // Create builtin shaders
+    if (!vulkan_object_shader_create(&m_context, &m_context.object_shader)) {
+        log_error("Error loading built-in basic lighting shader.");
+        return false;
+    }
+
     log_info("Vulkan backend initialized successfully.");
     return true;
 }
@@ -218,6 +225,9 @@ bool RendererBackendVulkan::init() {
 void RendererBackendVulkan::quit() {
     // Wait for the device to finish before shutting down
     vkDeviceWaitIdle(m_context.device.logical_device);
+
+    // Destroy builtin shaders
+    vulkan_object_shader_destroy(&m_context, &m_context.object_shader);
 
     // Destroy acquire semaphores
     for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {

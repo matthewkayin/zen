@@ -189,9 +189,11 @@ clean:
 ifeq ($(PLATFORM),win64)
 	@if exist $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION) del $(BUILD_DIR)\$(ASSEMBLY)$(EXTENSION)
 	@if exist $(OBJ_DIR) rmdir /s /q $(OBJ_DIR)
+	@if exist $(BUILD_DIR)\res rmdir /s /q $(BUILD_DIR)\res
 else
 	@rm -rf $(OBJ_DIR)
 	@rm -f $(BUILD_DIR)/$(ASSEMBLY)$(EXTENSION)
+	@rm -rf $(BUILD_DIR)/res
 endif
 
 # ------------------------------------------------------------------------------

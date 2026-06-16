@@ -98,6 +98,24 @@ struct VulkanCommandBuffer {
     VulkanCommandBufferState state;
 };
 
+struct VulkanShaderStage {
+    VkShaderModuleCreateInfo create_info;
+    VkShaderModule handle;
+    VkPipelineShaderStageCreateInfo shader_stage_create_info;
+};
+
+struct VulkanPipeline {
+    VkPipeline handle;
+    VkPipelineLayout pipeline_layout;
+};
+
+const uint32_t VULKAN_OBJECT_SHADER_STAGE_COUNT = 2;
+
+struct VulkanObjectShader {
+    VulkanShaderStage stages[VULKAN_OBJECT_SHADER_STAGE_COUNT];
+    VulkanPipeline pipeline;
+};
+
 struct VulkanContext {
     VkInstance instance;
     VkAllocationCallbacks* allocator;
@@ -119,6 +137,8 @@ struct VulkanContext {
     uint32_t framebuffer_height;
     uint64_t framebuffer_size_generation;
     uint64_t framebuffer_size_last_generation;
+
+    VulkanObjectShader object_shader;
 
     VkDebugUtilsMessengerEXT debug_messenger;
 };
