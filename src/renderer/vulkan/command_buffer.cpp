@@ -1,5 +1,4 @@
 #include "command_buffer.h"
-#include "vulkan/vulkan_core.h"
 
 #include <cstring>
 
@@ -30,6 +29,7 @@ void vulkan_command_buffer_allocate(
 
 void vulkan_command_buffer_free(VulkanContext* context, VkCommandPool pool, VulkanCommandBuffer* command_buffer) {
     vkFreeCommandBuffers(context->device.logical_device, pool, 1, &command_buffer->handle);
+    command_buffer->handle = VK_NULL_HANDLE;
 }
 
 void vulkan_command_buffer_begin(

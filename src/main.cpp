@@ -1,3 +1,6 @@
+#include "math/vec2.h"
+#include "math/vec3.h"
+
 #include "core/logger.h"
 #include "core/input.h"
 #include "renderer/frontend.h"

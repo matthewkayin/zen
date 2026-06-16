@@ -462,8 +462,6 @@ void RendererBackendVulkan::create_command_buffers() {
             true,
             &m_context.graphics_command_buffers[index]);
     }
-
-    log_info("Vulkan command buffers created.");
 }
 
 void RendererBackendVulkan::regenerate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass) {
@@ -500,6 +498,7 @@ bool RendererBackendVulkan::recreate_swapchain() {
 
     // Mark as recreating
     m_context.is_recreating_swapchain = true;
+    log_debug("RendererBackendVulkan::recreate_swapchain - Begin recreating swapchain");
 
     // Wait for any operations to complete
     vkDeviceWaitIdle(m_context.device.logical_device);
@@ -551,6 +550,7 @@ bool RendererBackendVulkan::recreate_swapchain() {
 
     // Clear the recreating flag
     m_context.is_recreating_swapchain = false;
+    log_debug("RendererBackendVulkan::recreate_swapchain - End recreating swapchain");
 
     return true;
 }
