@@ -44,6 +44,12 @@ ifeq ($(OS),Windows_NT)
 	SHELL       := cmd
 	DIRECTORIES := \$(SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SRC_DIR) /S /AD /B | findstr /i $(SRC_DIR)))
 
+	SHADER_SRC_DIR := res\shader
+	SHADER_FILES := \
+	    $(call rwildcard,$(SHADER_SRC_DIR)/,*.vert.glsl) \
+    	$(call rwildcard,$(SHADER_SRC_DIR)/,*.frag.glsl)
+	SHADER_DIRECTORIES := \$(SHADER_SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SHADER_SRC_DIR) /S /AD /B | findstr /i $(SHADER_SRC_DIR)))
+
 	LD_FLAGS += \
 		-L$(LIB_DIR) \
 		-lSDL3 \
@@ -54,6 +60,12 @@ else
 
 	SRC_FILES := $(shell find $(SRC_DIR) -type f \( -name "*.cpp" -o -name "*.mm" \))
 	DIRECTORIES := $(shell find src -type d)
+
+	SHADER_SRC_DIR := res/shader
+	SHADER_FILES := \
+    	$(shell find $(SHADER_SRC_DIR) -type f \( -name "*.vert.glsl" \)) \
+    	$(shell find $(SHADER_SRC_DIR) -type f \( -name "*.frag.glsl" \))
+	SHADER_DIRECTORIES := $(shell find $(SHADER_SRC_DIR) -type d)
 
 	ifeq ($(UNAME_S),Darwin)
 		PLATFORM := macos
@@ -92,13 +104,14 @@ endif
 # ------------------------------------------------------------------------------
 
 OBJ_FILES := $(SRC_FILES:%=$(OBJ_DIR)/%.o)
+SPV_FILES = $(patsubst $(SHADER_SRC_DIR)/%,$(BUILD_DIR)/$(SHADER_SRC_DIR)/%,$(SHADER_FILES:.glsl=.spv))
 
 # ------------------------------------------------------------------------------
 # Target Recipes
 # ------------------------------------------------------------------------------
 
 .PHONY: all
-all: scaffold compile link
+all: scaffold compile shader-compile link
 
 # ------------------------------------------------------------------------------
 # Scaffold
@@ -110,9 +123,11 @@ scaffold:
 ifeq ($(PLATFORM),win64)
 	@mkdir $(addprefix $(OBJ_DIR), $(DIRECTORIES)) 2>NUL || cd .
 	@mkdir $(BUILD_DIR) 2>NUL || cd .
+	@mkdir $(addprefix $(BUILD_DIR), $(SHADER_DIRECTORIES)) 2>NUL || cd .
 else
 	@mkdir -p $(BUILD_DIR)
 	@mkdir -p $(addprefix $(OBJ_DIR)/,$(DIRECTORIES))
+	@mkdir -p $(addprefix $(BUILD_DIR)/,$(SHADER_DIRECTORIES))
 endif
 	@echo Done.
 
@@ -131,6 +146,23 @@ compile:
 $(OBJ_DIR)/%.cpp.o: %.cpp
 	@echo   $<...
 	@$(CXX) $< $(CXX_FLAGS) -c -o $@ $(DEFINES) $(INCLUDE_FLAGS)
+
+# ------------------------------------------------------------------------------
+# Shader Compile
+# ------------------------------------------------------------------------------
+
+.PHONY: shader-compile
+shader-compile: $(SPV_FILES)
+
+# Compile vertex glsl to spir-v
+$(BUILD_DIR)/%.vert.spv: %.vert.glsl
+	@echo   $<...
+	@glslc -fshader-stage=vert $< -o $@
+
+# Compile fragment glsl to spir-v
+$(BUILD_DIR)/%.frag.spv: %.frag.glsl
+	@echo   $<...
+	@glslc -fshader-stage=frag $< -o $@
 
 # ------------------------------------------------------------------------------
 # Link

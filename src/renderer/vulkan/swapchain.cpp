@@ -92,7 +92,6 @@ void vulkan_swapchain_create_internal(
         .width = width,
         .height = height
     };
-    swapchain->max_frames_in_flight = 2;
 
     // Choose a swap surface format
     uint32_t format_index;
@@ -142,6 +141,8 @@ void vulkan_swapchain_create_internal(
             image_count > context->device.swapchain_support_info.capabilities.maxImageCount) {
         image_count = context->device.swapchain_support_info.capabilities.maxImageCount;
     }
+
+    swapchain->max_frames_in_flight = image_count - 1;
 
     // Swapchain create info
     VkSwapchainCreateInfoKHR swapchain_create_info{};
