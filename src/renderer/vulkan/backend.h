@@ -17,6 +17,8 @@ private:
     void create_command_buffers();
     void regenerate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass);
     bool recreate_swapchain();
+    bool create_buffers();
+    void upload_data_range(VkCommandPool pool, VkQueue queue, VulkanBuffer* buffer, uint64_t offset, uint64_t size, void* data);
 
     VulkanContext m_context;
     uint32_t m_cached_framebuffer_width;

@@ -8,7 +8,9 @@
 #include "renderer/vulkan/command_buffer.h"
 #include "renderer/vulkan/framebuffer.h"
 #include "renderer/vulkan/utils.h"
+#include "renderer/vulkan/buffer.h"
 #include "renderer/vulkan/shaders/object.h"
+#include "math/vertex3d.h"
 #include "vulkan/vulkan_core.h"
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
@@ -218,6 +220,38 @@ bool RendererBackendVulkan::init() {
         return false;
     }
 
+    // Create buffers
+    if (!create_buffers()) {
+        log_error("Failed to create buffers");
+        return false;
+    }
+
+    // Temporary test code
+    const uint32_t vertex_count = 3;
+    Vertex3d vertices[vertex_count];
+    vertices[0].position = vec3(0.0f, -0.5f, 0.0f);
+    vertices[1].position = vec3(0.5f, 0.5f, 0.0f);
+    vertices[2].position = vec3(0.0f, 0.5f, 0.0f);
+
+    const uint32_t index_count = 3;
+    uint32_t indices[index_count] = { 0, 1, 2 };
+
+    upload_data_range(
+        m_context.device.graphics_command_pool,
+        m_context.device.graphics_queue,
+        &m_context.object_vertex_buffer,
+        0,
+        vertex_count * sizeof(Vertex3d),
+        vertices);
+    upload_data_range(
+        m_context.device.graphics_command_pool,
+        m_context.device.graphics_queue,
+        &m_context.object_index_buffer,
+        0,
+        index_count * sizeof(uint32_t),
+        indices);
+    // End test code
+
     log_info("Vulkan backend initialized successfully.");
     return true;
 }
@@ -225,6 +259,10 @@ bool RendererBackendVulkan::init() {
 void RendererBackendVulkan::quit() {
     // Wait for the device to finish before shutting down
     vkDeviceWaitIdle(m_context.device.logical_device);
+
+    // Destroy buffers
+    vulkan_buffer_destroy(&m_context, &m_context.object_vertex_buffer);
+    vulkan_buffer_destroy(&m_context, &m_context.object_index_buffer);
 
     // Destroy builtin shaders
     vulkan_object_shader_destroy(&m_context, &m_context.object_shader);
@@ -406,6 +444,15 @@ bool RendererBackendVulkan::begin_frame(double delta_time) {
         &m_context.main_renderpass,
         m_context.swapchain.framebuffers[m_context.image_index].handle);
 
+    // Test draw code
+    vulkan_object_shader_use(&m_context, &m_context.object_shader);
+
+    VkDeviceSize offsets[1] = { 0 };
+    vkCmdBindVertexBuffers(command_buffer->handle, 0, 1, &m_context.object_vertex_buffer.handle, offsets);
+    vkCmdBindIndexBuffer(command_buffer->handle, m_context.object_index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(command_buffer->handle, 3, 1, 0, 0, 0);
+    // End test code
+
     return true;
 }
 
@@ -563,6 +610,62 @@ bool RendererBackendVulkan::recreate_swapchain() {
     log_debug("RendererBackendVulkan::recreate_swapchain - End recreating swapchain");
 
     return true;
+}
+
+bool RendererBackendVulkan::create_buffers() {
+    VkMemoryPropertyFlags memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+    const uint64_t vertex_buffer_size = 1024 * 1024 * sizeof(Vertex3d);
+    if (!vulkan_buffer_create(
+            &m_context,
+            vertex_buffer_size,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            memory_property_flags,
+            true,
+            &m_context.object_vertex_buffer)) {
+        log_error("Error creating object vertex buffer.");
+        return false;
+    }
+
+    const uint64_t index_buffer_size = 1024 * 1024 * sizeof(uint32_t);
+    if (!vulkan_buffer_create(
+            &m_context,
+            index_buffer_size,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            memory_property_flags,
+            true,
+            &m_context.object_index_buffer)) {
+        log_error("Error creating object index buffer.");
+        return false;
+    }
+
+    m_context.geometry_vertex_offset = 0;
+    m_context.geometry_index_offset = 0;
+
+    return true;
+}
+
+void RendererBackendVulkan::upload_data_range(
+        VkCommandPool pool,
+        VkQueue queue,
+        VulkanBuffer* buffer,
+        uint64_t offset,
+        uint64_t size,
+        void* data) {
+
+    // Create a host-visible staging buffer to upload to and mark it as the source of transfer
+    VkBufferUsageFlags flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    VulkanBuffer staging_buffer;
+    vulkan_buffer_create(&m_context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, flags, true, &staging_buffer);
+
+    // Load the data into the staging buffer
+    vulkan_buffer_load_data(&m_context, &staging_buffer, 0, size, 0, data);
+
+    // Copy from the staging to the device local buffer
+    vulkan_buffer_copy_to(&m_context, pool, queue, staging_buffer.handle, 0, buffer->handle, offset, size);
+
+    // Cleanup the staging buffer
+    vulkan_buffer_destroy(&m_context, &staging_buffer);
 }
 
 // INTERNAL

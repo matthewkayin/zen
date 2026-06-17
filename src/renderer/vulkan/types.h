@@ -8,6 +8,16 @@
     ZEN_ASSERT(expr == VK_SUCCESS); \
  }
 
+struct VulkanBuffer {
+    uint64_t total_size;
+    VkBuffer handle;
+    VkBufferUsageFlags usage;
+    VkDeviceMemory memory;
+    uint32_t memory_index;
+    VkMemoryPropertyFlags memory_property_flags;
+    bool is_locked;
+};
+
 struct VulkanSwapchainSupportInfo {
     VkSurfaceCapabilitiesKHR capabilities;
     uint32_t format_count;
@@ -123,6 +133,10 @@ struct VulkanContext {
     VulkanDevice device;
     VulkanSwapchain swapchain;
     VulkanRenderpass main_renderpass;
+
+    VulkanBuffer object_vertex_buffer;
+    VulkanBuffer object_index_buffer;
+
     VulkanCommandBuffer* graphics_command_buffers;
 
     VkSemaphore* acquire_semaphores;
@@ -139,6 +153,9 @@ struct VulkanContext {
     uint64_t framebuffer_size_last_generation;
 
     VulkanObjectShader object_shader;
+
+    uint64_t geometry_vertex_offset;
+    uint64_t geometry_index_offset;
 
     VkDebugUtilsMessengerEXT debug_messenger;
 };
