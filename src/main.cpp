@@ -1,8 +1,8 @@
 #include "math/vec2.h"
 #include "math/vec3.h"
 
-#include "core/logger.h"
 #include "core/input.h"
+#include "core/logger.h"
 #include "renderer/frontend.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
@@ -67,7 +67,8 @@ bool game_init() {
     // Create window
     const int window_width = 1280;
     const int window_height = 720;
-    state.window = SDL_CreateWindow(ZEN_APP_NAME, window_width, window_height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    state.window = SDL_CreateWindow(ZEN_APP_NAME, window_width, window_height,
+                                    SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     if (state.window == nullptr) {
         log_error("Error creating window: %s", SDL_GetError());
         return false;
@@ -92,9 +93,7 @@ void game_quit() {
     logger_quit();
 }
 
-bool game_is_running() {
-    return !input_user_requests_exit();
-}
+bool game_is_running() { return !input_user_requests_exit(); }
 
 double game_timekeep() {
     uint64_t current_time = SDL_GetTicksNS();

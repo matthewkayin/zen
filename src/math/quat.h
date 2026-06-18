@@ -23,9 +23,7 @@ struct quat {
         w = p_w;
     }
 
-    static quat identity() {
-        return quat(0.0f, 0.0f, 0.0f, 1.0f);
-    }
+    static quat identity() { return quat(0.0f, 0.0f, 0.0f, 1.0f); }
 
     float normal() const {
         return std::sqrt((x * x) + (y * y) + (z * z) + (w * w));
@@ -41,54 +39,30 @@ struct quat {
 
     quat normalized() const {
         float _normal = normal();
-        return quat(
-            x / _normal,
-            y / _normal,
-            z / _normal,
-            w / _normal);
+        return quat(x / _normal, y / _normal, z / _normal, w / _normal);
     }
 
-    quat conjugate() const {
-        return quat(-x, -y, -z, w);
-    }
+    quat conjugate() const { return quat(-x, -y, -z, w); }
 
-    quat inverse() const {
-        return conjugate().normalized();
-    }
+    quat inverse() const { return conjugate().normalized(); }
 
     quat operator*(const quat& other) const {
         quat result;
 
         result.x =
-            (x * other.w) +
-            (y * other.z) -
-            (z * other.y) +
-            (w * other.x);
+            (x * other.w) + (y * other.z) - (z * other.y) + (w * other.x);
         result.y =
-            (-x * other.z) +
-            (y * other.w) +
-            (z * other.x) +
-            (w * other.y);
+            (-x * other.z) + (y * other.w) + (z * other.x) + (w * other.y);
         result.z =
-            (x * other.y) -
-            (y * other.x) +
-            (z * other.w) +
-            (w * other.z);
+            (x * other.y) - (y * other.x) + (z * other.w) + (w * other.z);
         result.w =
-            (-x * other.x) -
-            (y * other.y) -
-            (z * other.z) +
-            (w * other.w);
+            (-x * other.x) - (y * other.y) - (z * other.z) + (w * other.w);
 
         return result;
     }
 
     static float dot(const quat& a, const quat& b) {
-        return
-            (a.x * b.x) +
-            (a.y * b.y) +
-            (a.z * b.z) +
-            (a.w * b.w);
+        return (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
     }
 
     mat4 to_mat4() const {
@@ -116,17 +90,21 @@ struct quat {
         result.data[0] = (x * x) - (y * y) - (z * z) + (w * w);
         result.data[1] = 2.0f * ((x * y) + (z * w));
         result.data[2] = 2.0f * ((x * z) - (y * w));
-        result.data[3] = center.x - center.x * result.data[0] - center.y * result.data[1] - center.z * result.data[2];
+        result.data[3] = center.x - center.x * result.data[0] -
+                         center.y * result.data[1] - center.z * result.data[2];
 
         result.data[4] = 2.0f * ((x * y) - (z * w));
         result.data[5] = -(x * x) + (y * y) - (z * z) + (w * w);
         result.data[6] = 2.0f * ((y * z) + (x * w));
-        result.data[7] = center.y - center.x * result.data[4] - center.y * result.data[5] - center.z * result.data[6];
+        result.data[7] = center.y - center.x * result.data[4] -
+                         center.y * result.data[5] - center.z * result.data[6];
 
         result.data[8] = 2.0f * ((x * z) + (y * w));
         result.data[9] = 2.0f * ((y * z) - (x * w));
         result.data[10] = -(x * x) - (y * y) + (z * z) + (w * w);
-        result.data[11] = center.z - center.x * result.data[8] - center.y * result.data[9] - center.z * result.data[10];
+        result.data[11] = center.z - center.x * result.data[8] -
+                          center.y * result.data[9] -
+                          center.z * result.data[10];
 
         result.data[12] = 0.0f;
         result.data[13] = 0.0f;
@@ -140,7 +118,8 @@ struct quat {
         float sin_angle = sin(0.5f * angle);
         float cos_angle = cos(0.5f * angle);
 
-        quat result = quat(sin_angle * axis.x, sin_angle * axis.y, sin_angle * axis.z, cos_angle);
+        quat result = quat(sin_angle * axis.x, sin_angle * axis.y,
+                           sin_angle * axis.z, cos_angle);
         if (normalize) {
             result.normalize();
         }
@@ -164,12 +143,13 @@ struct quat {
 
         const float DOT_THRESHOLD = 0.9995f;
         if (_dot > DOT_THRESHOLD) {
-            // If inputs are too close to safely acos, lerp and normalize the result
-            return quat(
-                from.x + ((to.x - from.x) * percent),
-                from.y + ((to.y - from.y) * percent),
-                from.z + ((to.z - from.z) * percent),
-                from.w + ((to.w - from.w) * percent)).normalized();
+            // If inputs are too close to safely acos, lerp and normalize the
+            // result
+            return quat(from.x + ((to.x - from.x) * percent),
+                        from.y + ((to.y - from.y) * percent),
+                        from.z + ((to.z - from.z) * percent),
+                        from.w + ((to.w - from.w) * percent))
+                .normalized();
         }
 
         float theta_0 = acos(_dot);
@@ -179,10 +159,7 @@ struct quat {
         float s0 = cos(theta) - (_dot * (sin_theta / sin_theta_0));
         float s1 = sin_theta / sin_theta_0;
 
-        return quat(
-            (from.x * s0) + (to.x * s1),
-            (from.y * s0) + (to.y * s1),
-            (from.z * s0) + (to.z * s1),
-            (from.w * s0) + (to.w * s1));
+        return quat((from.x * s0) + (to.x * s1), (from.y * s0) + (to.y * s1),
+                    (from.z * s0) + (to.z * s1), (from.w * s0) + (to.w * s1));
     }
 };

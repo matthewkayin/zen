@@ -29,9 +29,7 @@ struct vec4 {
         w = p_w;
     }
 
-    vec3 to_vec3() const {
-        return vec3(x, y, z);
-    }
+    vec3 to_vec3() const { return vec3(x, y, z); }
     static vec4 from_vec3(const vec3& src, float p_w) {
         return vec4(src.x, src.y, src.z, p_w);
     }
@@ -51,9 +49,7 @@ struct vec4 {
         }
         return true;
     }
-    bool operator!=(const vec4& other) const {
-        return !((*this) == other);
-    }
+    bool operator!=(const vec4& other) const { return !((*this) == other); }
 
     vec4 operator+(const vec4& other) const {
         return vec4(x + other.x, y + other.y, z + other.z, w + other.w);
@@ -102,9 +98,7 @@ struct vec4 {
     float length_squared() const {
         return (x * x) + (y * y) + (z * z) + (w * w);
     }
-    float length() const {
-        return std::sqrt(length_squared());
-    }
+    float length() const { return std::sqrt(length_squared()); }
 
     void normalize() {
         const float _length = length();
@@ -113,15 +107,9 @@ struct vec4 {
         z /= _length;
         w /= _length;
     }
-    vec4 normalized() const {
-        return (*this) / length();
-    }
+    vec4 normalized() const { return (*this) / length(); }
 
     static float dot(const vec4& a, const vec4& b) {
-        return
-            (a.x * b.x) +
-            (a.y * b.y) +
-            (a.z * b.z) +
-            (a.w * b.w);
+        return (a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w);
     }
 };

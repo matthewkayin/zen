@@ -1,15 +1,13 @@
 #pragma once
 
 #include "math/vec3.h"
-#include <cstring>
 #include <cmath>
+#include <cstring>
 
 struct mat4 {
     float data[16];
 
-    mat4() {
-        memset(data, 0, sizeof(data));
-    }
+    mat4() { memset(data, 0, sizeof(data)); }
 
     static mat4 identity() {
         mat4 m;
@@ -35,7 +33,8 @@ struct mat4 {
         return result;
     }
 
-    static mat4 ortho(float left, float right, float top, float bottom, float near, float far) {
+    static mat4 ortho(float left, float right, float top, float bottom,
+                      float near, float far) {
         mat4 result = mat4::identity();
 
         float lr = 1.0f / (left - right);
@@ -47,13 +46,14 @@ struct mat4 {
         result.data[10] = 2.0f * nf;
 
         result.data[12] = (left + right) * lr;
-        result.data[13] = (top +bottom) * bt;
+        result.data[13] = (top + bottom) * bt;
         result.data[14] = (far + near) * nf;
 
         return result;
     }
 
-    static mat4 perspective(float fov_radians, float aspect_ratio, float near, float far) {
+    static mat4 perspective(float fov_radians, float aspect_ratio, float near,
+                            float far) {
         float half_tan_fov = tanf(fov_radians * 0.5f);
 
         mat4 result;
@@ -68,7 +68,8 @@ struct mat4 {
 
     static mat4 look_at(vec3 position, vec3 target, vec3 up) {
         mat4 result;
-        vec3 z_axis(target.x - position.x, target.y - position.y, target.z - position.z);
+        vec3 z_axis(target.x - position.x, target.y - position.y,
+                    target.z - position.z);
         z_axis.normalize();
 
         vec3 x_axis = vec3::cross(z_axis, up).normalized();
@@ -94,7 +95,6 @@ struct mat4 {
         return result;
     }
 
-
     mat4 transposed() const {
         mat4 result = mat4::identity();
 
@@ -117,7 +117,6 @@ struct mat4 {
 
         return result;
     }
-
 
     mat4 mat4_inverse() const {
         float t0 = data[10] * data[15];
@@ -147,29 +146,56 @@ struct mat4 {
 
         mat4 result;
 
-        result.data[0] = (t0 * data[5] + t3 * data[9] + t4 * data[13]) - (t1 * data[5] + t2 * data[9] + t5 * data[13]);
-        result.data[1] = (t1 * data[1] + t6 * data[9] + t9 * data[13]) - (t0 * data[1] + t7 * data[9] + t8 * data[13]);
-        result.data[2] = (t2 * data[1] + t7 * data[5] + t10 * data[13]) - (t3 * data[1] + t6 * data[5] + t11 * data[13]);
-        result.data[3] = (t5 * data[1] + t8 * data[5] + t11 * data[9]) - (t4 * data[1] + t9 * data[5] + t10 * data[9]);
+        result.data[0] = (t0 * data[5] + t3 * data[9] + t4 * data[13]) -
+                         (t1 * data[5] + t2 * data[9] + t5 * data[13]);
+        result.data[1] = (t1 * data[1] + t6 * data[9] + t9 * data[13]) -
+                         (t0 * data[1] + t7 * data[9] + t8 * data[13]);
+        result.data[2] = (t2 * data[1] + t7 * data[5] + t10 * data[13]) -
+                         (t3 * data[1] + t6 * data[5] + t11 * data[13]);
+        result.data[3] = (t5 * data[1] + t8 * data[5] + t11 * data[9]) -
+                         (t4 * data[1] + t9 * data[5] + t10 * data[9]);
 
-        float d = 1.0f / (data[0] * result.data[0] + data[4] * result.data[1] + data[8] * result.data[2] + data[12] * result.data[3]);
+        float d = 1.0f / (data[0] * result.data[0] + data[4] * result.data[1] +
+                          data[8] * result.data[2] + data[12] * result.data[3]);
 
         result.data[0] = d * result.data[0];
         result.data[1] = d * result.data[1];
         result.data[2] = d * result.data[2];
         result.data[3] = d * result.data[3];
-        result.data[4] = d * ((t1 * result.data[4] + t2 * result.data[8] + t5 * result.data[12]) - (t0 * result.data[4] + t3 * result.data[8] + t4 * result.data[12]));
-        result.data[5] = d * ((t0 * data[0] + t7 * data[8] + t8 * data[12]) - (t1 * data[0] + t6 * data[8] + t9 * data[12]));
-        result.data[6] = d * ((t3 * data[0] + t6 * data[4] + t11 * data[12]) - (t2 * data[0] + t7 * data[4] + t10 * data[12]));
-        result.data[7] = d * ((t4 * data[0] + t9 * data[4] + t10 * data[8]) - (t5 * data[0] + t8 * data[4] + t11 * data[8]));
-        result.data[8] = d * ((t12 * data[7] + t15 * data[11] + t16 * data[15]) - (t13 * data[7] + t14 * data[11] + t17 * data[15]));
-        result.data[9] = d * ((t13 * data[3] + t18 * data[11] + t21 * data[15]) - (t12 * data[3] + t19 * data[11] + t20 * data[15]));
-        result.data[10] = d * ((t14 * data[3] + t19 * data[7] + t22 * data[15]) - (t15 * data[3] + t18 * data[7] + t23 * data[15]));
-        result.data[11] = d * ((t17 * data[3] + t20 * data[7] + t23 * data[11]) - (t16 * data[3] + t21 * data[7] + t22 * data[11]));
-        result.data[12] = d * ((t14 * data[10] + t17 * data[14] + t13 * data[6]) - (t16 * data[14] + t12 * data[6] + t15 * data[10]));
-        result.data[13] = d * ((t20 * data[14] + t12 * data[2] + t19 * data[10]) - (t18 * data[10] + t21 * data[14] + t13 * data[2]));
-        result.data[14] = d * ((t18 * data[6] + t23 * data[14] + t15 * data[2]) - (t22 * data[14] + t14 * data[2] + t19 * data[6]));
-        result.data[15] = d * ((t22 * data[10] + t16 * data[2] + t21 * data[6]) - (t20 * data[6] + t23 * data[10] + t17 * data[2]));
+        result.data[4] = d * ((t1 * result.data[4] + t2 * result.data[8] +
+                               t5 * result.data[12]) -
+                              (t0 * result.data[4] + t3 * result.data[8] +
+                               t4 * result.data[12]));
+        result.data[5] = d * ((t0 * data[0] + t7 * data[8] + t8 * data[12]) -
+                              (t1 * data[0] + t6 * data[8] + t9 * data[12]));
+        result.data[6] = d * ((t3 * data[0] + t6 * data[4] + t11 * data[12]) -
+                              (t2 * data[0] + t7 * data[4] + t10 * data[12]));
+        result.data[7] = d * ((t4 * data[0] + t9 * data[4] + t10 * data[8]) -
+                              (t5 * data[0] + t8 * data[4] + t11 * data[8]));
+        result.data[8] =
+            d * ((t12 * data[7] + t15 * data[11] + t16 * data[15]) -
+                 (t13 * data[7] + t14 * data[11] + t17 * data[15]));
+        result.data[9] =
+            d * ((t13 * data[3] + t18 * data[11] + t21 * data[15]) -
+                 (t12 * data[3] + t19 * data[11] + t20 * data[15]));
+        result.data[10] =
+            d * ((t14 * data[3] + t19 * data[7] + t22 * data[15]) -
+                 (t15 * data[3] + t18 * data[7] + t23 * data[15]));
+        result.data[11] =
+            d * ((t17 * data[3] + t20 * data[7] + t23 * data[11]) -
+                 (t16 * data[3] + t21 * data[7] + t22 * data[11]));
+        result.data[12] =
+            d * ((t14 * data[10] + t17 * data[14] + t13 * data[6]) -
+                 (t16 * data[14] + t12 * data[6] + t15 * data[10]));
+        result.data[13] =
+            d * ((t20 * data[14] + t12 * data[2] + t19 * data[10]) -
+                 (t18 * data[10] + t21 * data[14] + t13 * data[2]));
+        result.data[14] =
+            d * ((t18 * data[6] + t23 * data[14] + t15 * data[2]) -
+                 (t22 * data[14] + t14 * data[2] + t19 * data[6]));
+        result.data[15] =
+            d * ((t22 * data[10] + t16 * data[2] + t21 * data[6]) -
+                 (t20 * data[6] + t23 * data[10] + t17 * data[2]));
 
         return result;
     }
@@ -245,9 +271,7 @@ struct mat4 {
         return vec3(data[2], data[6], data[10]).normalized();
     }
 
-    vec3 up() const {
-        return vec3(data[1], data[5], data[9]).normalized();
-    }
+    vec3 up() const { return vec3(data[1], data[5], data[9]).normalized(); }
 
     vec3 down() const {
         return vec3(-data[1], -data[5], -data[9]).normalized();
@@ -257,7 +281,5 @@ struct mat4 {
         return vec3(-data[0], -data[4], -data[8]).normalized();
     }
 
-    vec3 right() const {
-        return vec3(data[0], data[4], data[8]).normalized();
-    }
+    vec3 right() const { return vec3(data[0], data[4], data[8]).normalized(); }
 };

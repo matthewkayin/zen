@@ -1,10 +1,12 @@
 #pragma once
 
-#include "types.h"
 #include <cstdint>
 
-struct StaticMeshData;
 struct SDL_Window;
+
+struct RenderPacket {
+    double delta_time;
+};
 
 bool renderer_init(SDL_Window* window);
 void renderer_quit();

@@ -24,24 +24,12 @@ struct vec3 {
         z = p_z;
     }
 
-    static vec3 up() {
-        return vec3(0.0f, 1.0f, 0.0f);
-    }
-    static vec3 right() {
-        return vec3(1.0f, 0.0f, 0.0f);
-    }
-    static vec3 down() {
-        return vec3(0.0f, -1.0f, 0.0f);
-    }
-    static vec3 left() {
-        return vec3(-1.0f, 0.0f, 0.0f);
-    }
-    static vec3 forward() {
-        return vec3(0.0f, 0.0f, -1.0f);
-    }
-    static vec3 back() {
-        return vec3(0.0f, 0.0f, 1.0f);
-    }
+    static vec3 up() { return vec3(0.0f, 1.0f, 0.0f); }
+    static vec3 right() { return vec3(1.0f, 0.0f, 0.0f); }
+    static vec3 down() { return vec3(0.0f, -1.0f, 0.0f); }
+    static vec3 left() { return vec3(-1.0f, 0.0f, 0.0f); }
+    static vec3 forward() { return vec3(0.0f, 0.0f, -1.0f); }
+    static vec3 back() { return vec3(0.0f, 0.0f, 1.0f); }
 
     bool operator==(const vec3& other) const {
         if (std::abs(x - other.x) > ZEN_FLOAT_EPSILON) {
@@ -55,9 +43,7 @@ struct vec3 {
         }
         return true;
     }
-    bool operator!=(const vec3& other) const {
-        return !((*this) == other);
-    }
+    bool operator!=(const vec3& other) const { return !((*this) == other); }
 
     vec3 operator+(const vec3& other) const {
         return vec3(x + other.x, y + other.y, z + other.z);
@@ -99,12 +85,8 @@ struct vec3 {
         return *this;
     }
 
-    float length_squared() const {
-        return (x * x) + (y * y) + (z * z);
-    }
-    float length() const {
-        return std::sqrt(length_squared());
-    }
+    float length_squared() const { return (x * x) + (y * y) + (z * z); }
+    float length() const { return std::sqrt(length_squared()); }
 
     void normalize() {
         const float _length = length();
@@ -112,9 +94,7 @@ struct vec3 {
         y /= _length;
         z /= _length;
     }
-    vec3 normalized() const {
-        return (*this) / length();
-    }
+    vec3 normalized() const { return (*this) / length(); }
 
     static float distance(const vec3& a, const vec3& b) {
         return (a - b).length();
@@ -124,9 +104,7 @@ struct vec3 {
         return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
     }
     static vec3 cross(const vec3& a, const vec3& b) {
-        return vec3(
-            (a.y * b.z) - (a.z * b.y),
-            (a.z * b.x) - (a.x * b.z),
-            (a.x * b.y) - (a.y * b.x));
+        return vec3((a.y * b.z) - (a.z * b.y), (a.z * b.x) - (a.x * b.z),
+                    (a.x * b.y) - (a.y * b.x));
     }
 };

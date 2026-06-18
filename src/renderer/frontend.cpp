@@ -1,24 +1,23 @@
 #include "frontend.h"
 
-#include "renderer/backend.h"
-
 #include "core/logger.h"
-
-static IRendererBackend* backend = nullptr;
+#include "renderer/backend.h"
 
 bool renderer_begin_frame(double delta_time);
 bool renderer_end_frame(double delta_time);
 
+static IRendererBackend* backend = nullptr;
+
 bool renderer_init(SDL_Window* window) {
-    backend = renderer_backend_create(RENDERER_BACKEND_TYPE_VULKAN, window);
+    backend = IRendererBackend::create(RendererBackendType::VULKAN, window);
     if (backend == nullptr) {
-        log_error("Failed to alloc backend.");
+        log_error("Failed to create backend.");
         return false;
     }
 
     if (!backend->init()) {
-        renderer_backend_destroy(backend);
-        log_error("Renderer backend failed to initialize.");
+        log_error("Renderer backend init failed.");
+        delete backend;
         return false;
     }
 
@@ -27,12 +26,12 @@ bool renderer_init(SDL_Window* window) {
 
 void renderer_quit() {
     backend->quit();
-    renderer_backend_destroy(backend);
+    delete backend;
 }
 
 void renderer_on_resized(uint32_t width, uint32_t height) {
     if (!backend) {
-        log_warn("renderer_on_resized - backend does not exist.");
+        log_warn("renderer_on_resized called with null backend.");
         return;
     }
 
@@ -44,12 +43,10 @@ bool renderer_draw_frame(RenderPacket* packet) {
         log_warn("renderer_begin_frame failed.");
         return true;
     }
-
     if (!renderer_end_frame(packet->delta_time)) {
         log_error("renderer_end_frame failed. Application shutting down.");
         return false;
     }
-
     return true;
 }
 
