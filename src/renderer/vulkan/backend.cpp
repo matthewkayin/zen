@@ -40,6 +40,12 @@ bool VulkanBackend::init() {
                   SDL_GetError());
         return false;
     }
+    for (uint32_t instance_extension_index = 0;
+         instance_extension_index < instance_extension_count;
+         instance_extension_index++) {
+        extension_names.push_back(
+            instance_extensions[instance_extension_index]);
+    }
 
 #ifdef ZEN_DEBUG
     // Debug extensions
@@ -140,7 +146,26 @@ bool VulkanBackend::init() {
     return true;
 }
 
-void VulkanBackend::quit() {}
+void VulkanBackend::quit() {
+    log_info("Destroying Vulkan surface...");
+    SDL_Vulkan_DestroySurface(m_context.instance, m_context.surface,
+                              m_context.allocator);
+    m_context.surface = nullptr;
+
+#ifdef ZEN_DEBUG
+    log_info("Destroying Vulkan debugger...");
+    if (m_context.debug_messenger) {
+        PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtilsMessenger =
+            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+                m_context.instance, "vkDestroyDebugUtilsMessengerEXT");
+        destroyDebugUtilsMessenger(m_context.instance,
+                                   m_context.debug_messenger, nullptr);
+    }
+#endif
+
+    log_info("Destroying Vulkan instance...");
+    vkDestroyInstance(m_context.instance, nullptr);
+}
 
 void VulkanBackend::on_resized(uint32_t width, uint32_t height) {}
 
@@ -150,7 +175,7 @@ bool VulkanBackend::end_frame(double delta_time) { return true; }
 
 // INTERNAL
 
-VKAPI_ATTR VkBool32 VKAPI_CALL renderer_backend_vulkan_debug_callback(
+VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_backend_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT /*message_types*/,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
