@@ -25,6 +25,7 @@ struct VulkanDevice {
     uint32_t graphics_queue_index;
     uint32_t present_queue_index;
     uint32_t transfer_queue_index;
+    uint32_t compute_queue_index;
 
     VkQueue graphics_queue;
     VkQueue present_queue;
@@ -45,6 +46,7 @@ struct VulkanContext {
     VkInstance instance;
     VkAllocationCallbacks* allocator;
     VkSurfaceKHR surface;
+    VulkanDevice device;
 
     // Debug
     VkDebugUtilsMessengerEXT debug_messenger;

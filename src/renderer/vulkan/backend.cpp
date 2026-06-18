@@ -1,13 +1,12 @@
 #include "backend.h"
 
+#include "defines.h"
+#include "core/logger.h"
+#include "renderer/vulkan/utils.h"
+#include "renderer/vulkan/device.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-
 #include <vector>
-
-#include "core/logger.h"
-#include "defines.h"
-#include "renderer/vulkan/utils.h"
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_backend_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -33,8 +32,7 @@ bool VulkanBackend::init() {
 
     // Get platform extensions from SDL
     uint32_t instance_extension_count;
-    const char* const* instance_extensions =
-        SDL_Vulkan_GetInstanceExtensions(&instance_extension_count);
+    const char* const* instance_extensions = SDL_Vulkan_GetInstanceExtensions(&instance_extension_count);
     if (instance_extensions == nullptr) {
         log_error("Failed to get platform-specific Vulkan extensions: %s",
                   SDL_GetError());
@@ -42,9 +40,9 @@ bool VulkanBackend::init() {
     }
     for (uint32_t instance_extension_index = 0;
          instance_extension_index < instance_extension_count;
-         instance_extension_index++) {
-        extension_names.push_back(
-            instance_extensions[instance_extension_index]);
+         instance_extension_index++
+    ) {
+        extension_names.push_back(instance_extensions[instance_extension_index]);
     }
 
 #ifdef ZEN_DEBUG
@@ -62,18 +60,15 @@ bool VulkanBackend::init() {
 
     // Get a list of all available validation layers
     uint32_t available_layer_count;
-    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, 0));
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, nullptr));
     std::vector<VkLayerProperties> available_layers(available_layer_count);
-    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count,
-                                                available_layers.data()));
+    VK_CHECK(vkEnumerateInstanceLayerProperties(&available_layer_count, available_layers.data()));
 
     // Verify all required layers are available
     for (uint32_t index = 0; index < (uint32_t)layer_names.size(); index++) {
         uint32_t layer_index;
-        for (layer_index = 0; layer_index < available_layer_count;
-             layer_index++) {
-            if (strcmp(layer_names[index],
-                       available_layers[layer_index].layerName) == 0) {
+        for (layer_index = 0; layer_index < available_layer_count; layer_index++) {
+            if (strcmp(layer_names[index], available_layers[layer_index].layerName) == 0) {
                 break;
             }
         }
@@ -92,18 +87,15 @@ bool VulkanBackend::init() {
     VkInstanceCreateInfo instance_create_info{};
     instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     instance_create_info.pApplicationInfo = &app_info;
-    instance_create_info.enabledExtensionCount =
-        (uint32_t)extension_names.size();
+    instance_create_info.enabledExtensionCount = (uint32_t)extension_names.size();
     instance_create_info.ppEnabledExtensionNames = extension_names.data();
     instance_create_info.enabledLayerCount = (uint32_t)layer_names.size();
     instance_create_info.ppEnabledLayerNames = layer_names.data();
 
     // Create instance
-    VkResult result = vkCreateInstance(
-        &instance_create_info, m_context.allocator, &m_context.instance);
+    VkResult result = vkCreateInstance(&instance_create_info, m_context.allocator, &m_context.instance);
     if (result != VK_SUCCESS) {
-        log_error("vkCreateInstance failed with result %s.",
-                  vulkan_result_str(result));
+        log_error("vkCreateInstance failed with result %s.", vulkan_result_str(result));
         return false;
     }
     log_info("Vulkan instance created.");
@@ -112,8 +104,7 @@ bool VulkanBackend::init() {
     log_debug("Creating Vulkan debugger...");
 
     VkDebugUtilsMessengerCreateInfoEXT debug_create_info{};
-    debug_create_info.sType =
-        VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debug_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     debug_create_info.messageSeverity =
         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
@@ -127,19 +118,21 @@ bool VulkanBackend::init() {
     PFN_vkCreateDebugUtilsMessengerEXT createDebugUtilsMessenger =
         (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
             m_context.instance, "vkCreateDebugUtilsMessengerEXT");
-    ZEN_ASSERT_MESSAGE(
-        createDebugUtilsMessenger,
-        "Failed to load createDebugUtilsMessenger function pointer.");
-    VK_CHECK(createDebugUtilsMessenger(m_context.instance, &debug_create_info,
-                                       m_context.allocator,
-                                       &m_context.debug_messenger));
+    ZEN_ASSERT_MESSAGE(createDebugUtilsMessenger, "Failed to load createDebugUtilsMessenger function pointer.");
+    VK_CHECK(createDebugUtilsMessenger(
+        m_context.instance, &debug_create_info, m_context.allocator, &m_context.debug_messenger));
     log_debug("Vulkan debugger created.");
 #endif
 
     // Create surface
-    if (!SDL_Vulkan_CreateSurface(m_window, m_context.instance,
-                                  m_context.allocator, &m_context.surface)) {
+    if (!SDL_Vulkan_CreateSurface(m_window, m_context.instance, m_context.allocator, &m_context.surface)) {
         log_error("Failed to create surface %s", SDL_GetError());
+        return false;
+    }
+
+    // Init device
+    if (!vulkan_device_create(&m_context)) {
+        log_error("Failed to create device.");
         return false;
     }
 
@@ -147,9 +140,11 @@ bool VulkanBackend::init() {
 }
 
 void VulkanBackend::quit() {
+    log_info("Destroying Vulkan device...");
+    vulkan_device_destroy(&m_context);
+
     log_info("Destroying Vulkan surface...");
-    SDL_Vulkan_DestroySurface(m_context.instance, m_context.surface,
-                              m_context.allocator);
+    SDL_Vulkan_DestroySurface(m_context.instance, m_context.surface, m_context.allocator);
     m_context.surface = nullptr;
 
 #ifdef ZEN_DEBUG
@@ -158,8 +153,7 @@ void VulkanBackend::quit() {
         PFN_vkDestroyDebugUtilsMessengerEXT destroyDebugUtilsMessenger =
             (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
                 m_context.instance, "vkDestroyDebugUtilsMessengerEXT");
-        destroyDebugUtilsMessenger(m_context.instance,
-                                   m_context.debug_messenger, nullptr);
+        destroyDebugUtilsMessenger(m_context.instance, m_context.debug_messenger, nullptr);
     }
 #endif
 
@@ -182,23 +176,23 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_backend_debug_callback(
     void* /*user_data*/
 ) {
     switch (message_severity) {
-    default:
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: {
-        log_error(callback_data->pMessage);
-        break;
-    }
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: {
-        log_warn(callback_data->pMessage);
-        break;
-    }
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: {
-        log_info(callback_data->pMessage);
-        break;
-    }
-    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: {
-        log_debug(callback_data->pMessage);
-        break;
-    }
+        default:
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: {
+            log_error(callback_data->pMessage);
+            break;
+        }
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT: {
+            log_warn(callback_data->pMessage);
+            break;
+        }
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT: {
+            log_info(callback_data->pMessage);
+            break;
+        }
+        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: {
+            log_debug(callback_data->pMessage);
+            break;
+        }
     }
 
     return VK_FALSE;
