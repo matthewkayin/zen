@@ -4,6 +4,7 @@
 #include "core/logger.h"
 #include "renderer/vulkan/utils.h"
 #include "renderer/vulkan/device.h"
+#include "renderer/vulkan/swapchain.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
@@ -16,6 +17,14 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_backend_debug_callback(
 bool VulkanBackend::init() {
     // If you want a custom allocator, fill it in here
     m_context.allocator = nullptr;
+
+    // Get framebuffer width and height
+    int window_width, window_height;
+    SDL_GetWindowSize(m_window, &window_width, &window_height);
+    m_context.framebuffer_width = (uint32_t)window_width;
+    m_context.framebuffer_height = (uint32_t)window_height;
+    m_context.framebuffer_size_generation = 0;
+    m_context.framebuffer_size_last_generation = 0;
 
     // Vulkan application info
     VkApplicationInfo app_info{};
@@ -133,6 +142,12 @@ bool VulkanBackend::init() {
     // Init device
     if (!vulkan_device_create(&m_context)) {
         log_error("Failed to create device.");
+        return false;
+    }
+
+    // Init swapchain
+    if (!vulkan_swapchain_create(
+        &m_context, m_context.framebuffer_width, m_context.framebuffer_height, &m_context.swapchain)) {
         return false;
     }
 
