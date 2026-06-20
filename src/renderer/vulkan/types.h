@@ -91,7 +91,6 @@ struct VulkanSwapchain {
     uint32_t image_count;
     VkImage* images;
     VkImageView* views;
-    VulkanFramebuffer* framebuffers;
 };
 
 // COMMAND BUFFER
@@ -118,6 +117,10 @@ struct VulkanContext {
     VkSurfaceKHR surface;
     VulkanDevice device;
     VulkanSwapchain swapchain;
+    VulkanRenderpass main_renderpass;
+
+    uint32_t framebuffer_count;
+    VulkanFramebuffer* framebuffers;
 
     // Debug
     VkDebugUtilsMessengerEXT debug_messenger;

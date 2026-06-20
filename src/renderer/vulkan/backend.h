@@ -4,7 +4,7 @@
 #include "renderer/vulkan/types.h"
 
 class VulkanBackend : public IRendererBackend {
-  public:
+public:
     VulkanBackend() = default;
     ~VulkanBackend() override = default;
 
@@ -14,6 +14,10 @@ class VulkanBackend : public IRendererBackend {
     bool begin_frame(double delta_time) override;
     bool end_frame(double delta_time) override;
 
-  private:
+private:
+    bool create_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass);
+    bool recreate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass);
+    void destroy_framebuffers();
+
     VulkanContext m_context;
 };

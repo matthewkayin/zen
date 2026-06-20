@@ -8,7 +8,7 @@ OBJ_DIR         := obj
 SRC_DIR         := src
 
 CXX             := clang++
-CXX_FLAGS       := -std=c++17 -Wall -Wextra -Wshadow -fno-exceptions -Wno-missing-designated-field-initializers
+CXX_FLAGS       := -std=c++17 -Wall -Wextra -Wshadow -fno-exceptions
 LD_FLAGS        :=
 
 INCLUDE_FLAGS   := -Isrc -Ivendor
@@ -50,6 +50,8 @@ ifeq ($(OS),Windows_NT)
     	$(call rwildcard,$(SHADER_SRC_DIR)/,*.frag.glsl)
 	SHADER_DIRECTORIES := \$(SHADER_SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SHADER_SRC_DIR) /S /AD /B | findstr /i $(SHADER_SRC_DIR)))
 
+	CXX_FLAGS += \
+	    -Wno-missing-designated-field-initializers
 	LD_FLAGS += \
 		-L$(LIB_DIR) \
 		-lSDL3 \
@@ -93,6 +95,8 @@ else
 		PLATFORM := linux
 		LIB_DIR  := lib/linux64
 
+		CXX_FLAGS += \
+		    -Wno-missing-designated-field-initializers
 		LD_FLAGS += \
 			-lSDL3
 	endif

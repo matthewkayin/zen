@@ -198,16 +198,6 @@ bool vulkan_device_detect_depth_format(VulkanDevice* device) {
 }
 
 bool vulkan_device_select_physical_device(VulkanContext* context) {
-    // Determine the requirements for a physical device
-    const uint32_t required_device_capabilities =
-        VULKAN_PHYSICAL_DEVICE_FLAG_GRAPHICS |
-        VULKAN_PHYSICAL_DEVICE_FLAG_PRESENT |
-        VULKAN_PHYSICAL_DEVICE_FLAG_TRANSFER |
-        VULKAN_PHYSICAL_DEVICE_FLAG_SAMPLER_ANISOTROPY |
-        VULKAN_PHYSICAL_DEVICE_FLAG_DISCRETE_GPU;
-    std::vector<const char*> required_device_extension_names;
-    required_device_extension_names.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-
     // Get the physical device count
     uint32_t physical_device_count = 0;
     VK_CHECK(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, nullptr));
@@ -220,48 +210,84 @@ bool vulkan_device_select_physical_device(VulkanContext* context) {
     std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
     VK_CHECK(vkEnumeratePhysicalDevices(context->instance, &physical_device_count, physical_devices.data()));
 
-    // Consider each device to be selected
+    // Init each candidate device
+    std::vector<VulkanDevice> devices(physical_device_count);
     for (uint32_t device_index = 0; device_index < physical_device_count; device_index++) {
-        VulkanDevice candidate_device;
-        vulkan_device_init_from_physical_device(physical_devices[device_index], context->surface, &candidate_device);
+        vulkan_device_init_from_physical_device(physical_devices[device_index], context->surface, &devices[device_index]);
+    }
 
-        if (vulkan_device_meets_requirements(&candidate_device, required_device_capabilities,
+    // Determine the requirements for a physical device
+    uint32_t required_device_capabilities =
+        VULKAN_PHYSICAL_DEVICE_FLAG_GRAPHICS |
+        VULKAN_PHYSICAL_DEVICE_FLAG_PRESENT |
+        VULKAN_PHYSICAL_DEVICE_FLAG_TRANSFER |
+        VULKAN_PHYSICAL_DEVICE_FLAG_SAMPLER_ANISOTROPY |
+        VULKAN_PHYSICAL_DEVICE_FLAG_DISCRETE_GPU;
+    std::vector<const char*> required_device_extension_names;
+    required_device_extension_names.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+    // Select a device which matches the requirements
+    const uint32_t DEVICE_NOT_SELECTED = UINT32_MAX;
+    uint32_t selected_device_index = DEVICE_NOT_SELECTED;
+    for (uint32_t device_index = 0; device_index < physical_device_count; device_index++) {
+        if (vulkan_device_meets_requirements(&devices[device_index], required_device_capabilities,
             ARRAY_LENGTH(VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES), VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES)
         ) {
-            // Print device info
-            log_info("Selected device %s | Type %s",
-                candidate_device.properties.deviceName,
-                vulkan_device_get_type_str(candidate_device.properties.deviceType));
-            log_info("GPU driver version: %d.%d.%d",
-                VK_VERSION_MAJOR(candidate_device.properties.driverVersion),
-                VK_VERSION_MINOR(candidate_device.properties.driverVersion),
-                VK_VERSION_PATCH(candidate_device.properties.driverVersion));
-            log_info("Vulkan API version: %d.%d.%d",
-                VK_API_VERSION_MAJOR(candidate_device.properties.apiVersion),
-                VK_API_VERSION_MINOR(candidate_device.properties.apiVersion),
-                VK_API_VERSION_PATCH(candidate_device.properties.apiVersion));
-
-            // Device memory info
-            for (uint32_t heap_index = 0;
-                heap_index < candidate_device.memory_properties.memoryHeapCount;
-                heap_index++
-            ) {
-                VkMemoryHeap heap = candidate_device.memory_properties.memoryHeaps[heap_index];
-                float memory_size_gib = (((float)heap.size) / 1024.0f / 1024.0f / 1024.0f);
-                const char* memory_type_str = heap.flags &
-                    VK_MEMORY_HEAP_DEVICE_LOCAL_BIT
-                        ? "Local GPU memory"
-                        : "Shared system memory";
-                log_info("%s: %.2f GiB", memory_type_str, memory_size_gib);
-            }
-
-            context->device = candidate_device;
-            return true;
+            selected_device_index = device_index;
+            break;
         }
     }
 
-    log_error("No physical devices were found which meet the requirements.");
-    return false;
+    // If no device was found, loosen the requirements and try again
+    if (selected_device_index == DEVICE_NOT_SELECTED) {
+        required_device_capabilities &= ~VULKAN_PHYSICAL_DEVICE_FLAG_DISCRETE_GPU;
+
+        for (uint32_t device_index = 0; device_index < physical_device_count; device_index++) {
+            if (vulkan_device_meets_requirements(&devices[device_index], required_device_capabilities,
+                ARRAY_LENGTH(VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES), VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES)
+            ) {
+                selected_device_index = device_index;
+                break;
+            }
+        }
+    }
+
+    // If still not device was found, then return false
+    if (selected_device_index == DEVICE_NOT_SELECTED) {
+        log_error("No physical devices were found which meet the requirements.");
+        return false;
+    }
+
+    context->device = devices[selected_device_index];
+
+    // Print device info
+    log_info("Selected device %s | Type %s",
+        context->device.properties.deviceName,
+        vulkan_device_get_type_str(context->device.properties.deviceType));
+    log_info("GPU driver version: %d.%d.%d",
+        VK_VERSION_MAJOR(context->device.properties.driverVersion),
+        VK_VERSION_MINOR(context->device.properties.driverVersion),
+        VK_VERSION_PATCH(context->device.properties.driverVersion));
+    log_info("Vulkan API version: %d.%d.%d",
+        VK_API_VERSION_MAJOR(context->device.properties.apiVersion),
+        VK_API_VERSION_MINOR(context->device.properties.apiVersion),
+        VK_API_VERSION_PATCH(context->device.properties.apiVersion));
+
+    // Device memory info
+    for (uint32_t heap_index = 0;
+        heap_index < context->device.memory_properties.memoryHeapCount;
+        heap_index++
+    ) {
+        VkMemoryHeap heap = context->device.memory_properties.memoryHeaps[heap_index];
+        float memory_size_gib = (((float)heap.size) / 1024.0f / 1024.0f / 1024.0f);
+        const char* memory_type_str = heap.flags &
+            VK_MEMORY_HEAP_DEVICE_LOCAL_BIT
+                ? "Local GPU memory"
+                : "Shared system memory";
+        log_info("%s: %.2f GiB", memory_type_str, memory_size_gib);
+    }
+
+    return true;
 }
 
 void vulkan_device_init_from_physical_device(

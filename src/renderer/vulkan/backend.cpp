@@ -2,9 +2,12 @@
 
 #include "defines.h"
 #include "core/logger.h"
+#include "renderer/vulkan/types.h"
 #include "renderer/vulkan/utils.h"
 #include "renderer/vulkan/device.h"
 #include "renderer/vulkan/swapchain.h"
+#include "renderer/vulkan/renderpass.h"
+#include "renderer/vulkan/framebuffer.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
@@ -157,10 +160,27 @@ bool VulkanBackend::init() {
         return false;
     }
 
+    // Init renderpass
+    vulkan_renderpass_create(&m_context,
+        // Size
+        0.0f, 0.0f, m_context.framebuffer_width, m_context.framebuffer_height,
+        // Color
+        0.0f, 0.0f, 0.2f, 1.0f,
+        // Depth / Stencil
+        1.0f, 0,
+        &m_context.main_renderpass);
+
+    if (!create_framebuffers(&m_context.swapchain, &m_context.main_renderpass)) {
+        return false;
+    }
+
     return true;
 }
 
 void VulkanBackend::quit() {
+    destroy_framebuffers();
+    vulkan_renderpass_destroy(&m_context, &m_context.main_renderpass);
+
     log_info("Destroying Vulkan swapchain...");
     vulkan_swapchain_destroy(&m_context, &m_context.swapchain);
 
@@ -190,6 +210,61 @@ void VulkanBackend::on_resized(uint32_t width, uint32_t height) {}
 bool VulkanBackend::begin_frame(double delta_time) { return true; }
 
 bool VulkanBackend::end_frame(double delta_time) { return true; }
+
+// PRIVATE
+
+bool VulkanBackend::create_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass) {
+    // Alloc framebuffers array
+    m_context.framebuffer_count = swapchain->image_count;
+    m_context.framebuffers = (VulkanFramebuffer*)malloc(m_context.framebuffer_count * sizeof(VulkanFramebuffer));
+    if (!m_context.framebuffers) {
+        log_error("Failed to alloc framebuffers array");
+        return false;
+    }
+
+    // Init new framebuffers
+    for (uint32_t index = 0;
+        index < m_context.framebuffer_count;
+        index++
+    ) {
+        VkImageView attachments[] = {
+            swapchain->views[index],
+            swapchain->depth_attachment.view
+        };
+
+        if (!vulkan_framebuffer_create(
+            &m_context,
+            renderpass,
+            m_context.framebuffer_width,
+            m_context.framebuffer_height,
+            ARRAY_LENGTH(attachments),
+            attachments,
+            &m_context.framebuffers[index])
+        ) {
+            log_error("Failed to create framebuffer.");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool VulkanBackend::recreate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass) {
+    destroy_framebuffers();
+    return create_framebuffers(swapchain, renderpass);
+}
+
+void VulkanBackend::destroy_framebuffers() {
+    if (m_context.framebuffers) {
+        for (uint32_t framebuffer_index = 0;
+            framebuffer_index < m_context.framebuffer_count;
+            framebuffer_index++
+        ) {
+            vulkan_framebuffer_destroy(&m_context, &m_context.framebuffers[framebuffer_index]);
+        }
+        free(m_context.framebuffers);
+    }
+}
 
 // INTERNAL
 

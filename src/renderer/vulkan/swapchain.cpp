@@ -22,6 +22,7 @@ bool vulkan_swapchain_create(
     // Requery swapchain support
     vulkan_device_query_swapchain_support(
         context->device.physical_device, context->surface, &context->device.swapchain_support_info);
+    vulkan_device_detect_depth_format(&context->device);
 
     // Choose a swap surface format, using the first format as a default
     out_swapchain->image_format = context->device.swapchain_support_info.formats[0];
