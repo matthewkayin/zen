@@ -8,8 +8,11 @@
 #include "renderer/vulkan/swapchain.h"
 #include "renderer/vulkan/renderpass.h"
 #include "renderer/vulkan/framebuffer.h"
+#include "renderer/vulkan/command_buffer.h"
+#include "vulkan/vulkan_core.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+#include <memory>
 #include <vector>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_backend_debug_callback(
@@ -170,7 +173,8 @@ bool VulkanBackend::init() {
         1.0f, 0,
         &m_context.main_renderpass);
 
-    if (!create_framebuffers(&m_context.swapchain, &m_context.main_renderpass)) {
+    // Swapchain dependent resources
+    if (!create_swapchain_dependent_resources()) {
         return false;
     }
 
@@ -178,7 +182,7 @@ bool VulkanBackend::init() {
 }
 
 void VulkanBackend::quit() {
-    destroy_framebuffers();
+    destroy_swapchain_dependent_resources();
     vulkan_renderpass_destroy(&m_context, &m_context.main_renderpass);
 
     log_info("Destroying Vulkan swapchain...");
@@ -205,18 +209,107 @@ void VulkanBackend::quit() {
     vkDestroyInstance(m_context.instance, nullptr);
 }
 
-void VulkanBackend::on_resized(uint32_t width, uint32_t height) {}
+void VulkanBackend::on_resized() {
+    m_context.framebuffer_size_generation++;
+}
 
-bool VulkanBackend::begin_frame(double delta_time) { return true; }
+bool VulkanBackend::begin_frame(double delta_time) {
+    // If recreating swapchain, do nothing
+    if (m_context.is_recreating_swapchain) {
+        VkResult result = vkDeviceWaitIdle(m_context.device.logical_device);
+        if (vulkan_result_is_error(result)) {
+            log_error("VulkanBackend::begin_frame - vkDeviceWaitIdle (1) failed: %s", vulkan_result_str(result));
+            return false;
+        }
+
+        log_info("VulkanBackend::begin_frame - Doing nothing because we are recreating swapchain.");
+        return false;
+    }
+
+    // Check if the window has been resized if so, recreate swapchain
+    if (m_context.framebuffer_size_generation != m_context.framebuffer_size_last_generation) {
+        VkResult result = vkDeviceWaitIdle(m_context.device.logical_device);
+        if (vulkan_result_is_error(result)) {
+            log_error("VulkanBackend::begin_frame - vkDeviceWaitIdle (2) failed: %s", vulkan_result_str(result));
+            return false;
+        }
+
+        if (!recreate_swapchain()) {
+            return false;
+        }
+
+        log_info("VulkanBackend::begin_frame - Resize successful.");
+        return false;
+    }
+
+    // Wait for the execution of the current fence to complete
+
+    return true;
+}
 
 bool VulkanBackend::end_frame(double delta_time) { return true; }
 
 // PRIVATE
 
-bool VulkanBackend::create_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass) {
+bool VulkanBackend::recreate_swapchain() {
+    // If already recreating, don't try again
+    if (m_context.is_recreating_swapchain) {
+        log_warn("VulkanBackend::recreate_swapchain - called when already recreating swapchain.");
+        return false;
+    }
+
+    // If window is too small, don't create
+    if (m_context.framebuffer_width == 0 || m_context.framebuffer_height == 0) {
+        log_warn("VulkanBackend::recreate_swapchain - framebuffer dimensions are too small.");
+        return false;
+    }
+
+    // Mark as recreating
+    m_context.is_recreating_swapchain = true;
+    log_debug("VulkanBackend::recreate_swapchain - Begin recreating swapchain.");
+
+    // Wait on device
+    vkDeviceWaitIdle(m_context.device.logical_device);
+
+    // Destroy dependent resources
+    destroy_swapchain_dependent_resources();
+
+    // Get updated framebuffer size
+    int window_width, window_height;
+    SDL_GetWindowSize(m_window, &window_width, &window_height);
+    m_context.framebuffer_width = (uint32_t)window_width;
+    m_context.framebuffer_height = (uint32_t)window_height;
+
+    // Update framebuffer size generation
+    m_context.framebuffer_size_last_generation = m_context.framebuffer_size_generation;
+
+    // Update renderpass dimensions
+    m_context.main_renderpass.x = 0.0f;
+    m_context.main_renderpass.y = 0.0f;
+    m_context.main_renderpass.w = (float)window_width;
+    m_context.main_renderpass.h = (float)window_height;
+
+    if (!vulkan_swapchain_recreate(&m_context,
+        m_context.framebuffer_width, m_context.framebuffer_height,
+        &m_context.swapchain
+    )) {
+        return false;
+    }
+
+    create_swapchain_dependent_resources();
+
+    // Clear the recreating flag
+    m_context.is_recreating_swapchain = false;
+    log_debug("VulkanBackend::recreate_swapchain - success.");
+
+    return true;
+}
+
+bool VulkanBackend::create_swapchain_dependent_resources() {
+    // FRAMEBUFFERS
+
     // Alloc framebuffers array
-    m_context.framebuffer_count = swapchain->image_count;
-    m_context.framebuffers = (VulkanFramebuffer*)malloc(m_context.framebuffer_count * sizeof(VulkanFramebuffer));
+    m_context.framebuffers = (VulkanFramebuffer*)malloc(m_context.swapchain.image_count * sizeof(VulkanFramebuffer));
     if (!m_context.framebuffers) {
         log_error("Failed to alloc framebuffers array");
         return false;
@@ -224,17 +317,17 @@ bool VulkanBackend::create_framebuffers(VulkanSwapchain* swapchain, VulkanRender
 
     // Init new framebuffers
     for (uint32_t index = 0;
-        index < m_context.framebuffer_count;
+        index < m_context.swapchain.image_count;
         index++
     ) {
         VkImageView attachments[] = {
-            swapchain->views[index],
-            swapchain->depth_attachment.view
+            m_context.swapchain.views[index],
+            m_context.swapchain.depth_attachment.view
         };
 
         if (!vulkan_framebuffer_create(
             &m_context,
-            renderpass,
+            &m_context.main_renderpass,
             m_context.framebuffer_width,
             m_context.framebuffer_height,
             ARRAY_LENGTH(attachments),
@@ -246,23 +339,165 @@ bool VulkanBackend::create_framebuffers(VulkanSwapchain* swapchain, VulkanRender
         }
     }
 
+    // COMMAND BUFFERS
+
+    // Alloc command buffers array
+    m_context.graphics_command_buffers = (VulkanCommandBuffer*)malloc(m_context.swapchain.image_count * sizeof(VulkanCommandBuffer));
+    if (!m_context.graphics_command_buffers) {
+        log_error("Failed to alloc graphics command buffers array.");
+        return false;
+    }
+
+    // Alloc command buffers
+    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+        vulkan_command_buffer_allocate(
+            &m_context,
+            m_context.device.graphics_command_pool,
+            VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            &m_context.graphics_command_buffers[index]);
+    }
+
+    // ACQUIRE SEMAPHORES
+
+    // Alloc acquire semaphores array
+    m_context.acquire_semaphores = (VkSemaphore*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VkSemaphore));
+    if (!m_context.acquire_semaphores) {
+        log_error("Failed to alloc aquire semaphores array.");
+        return false;
+    }
+
+    // Create acquire semaphores
+    for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
+        VkSemaphoreCreateInfo create_info {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
+
+        VK_CHECK(vkCreateSemaphore(
+            m_context.device.logical_device,
+            &create_info,
+            m_context.allocator,
+            &m_context.acquire_semaphores[index]));
+    }
+
+    // SUBMIT SEMAPHORES
+
+    // Alloc submit semaphores array
+    m_context.submit_semaphores = (VkSemaphore*)malloc(m_context.swapchain.image_count * sizeof(VkSemaphore));
+    if (!m_context.submit_semaphores) {
+        log_error("Failed to alloc submit semaphores array.");
+        return false;
+    }
+
+    // Create submit semaphores
+    for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+        VkSemaphoreCreateInfo create_info {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
+
+        VK_CHECK(vkCreateSemaphore(
+            m_context.device.logical_device,
+            &create_info,
+            m_context.allocator,
+            &m_context.submit_semaphores[index]));
+    }
+
+    // FRAME FENCES
+
+    // Alloc frame fences array
+    m_context.frame_fences = (VkFence*)malloc(m_context.swapchain.max_frames_in_flight * sizeof(VkFence));
+    if (!m_context.frame_fences) {
+        log_error("Failed to alloc frame fences array.");
+        return false;
+    }
+
+    // Create frame fences
+    for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
+        // Fence is created in signaled state so that application does not get stuck waiting
+        // forever for the 0th frame to "finish"
+        VkFenceCreateInfo create_info {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT
+        };
+
+        VK_CHECK(vkCreateFence(
+            m_context.device.logical_device,
+            &create_info,
+            m_context.allocator,
+            &m_context.frame_fences[index]));
+    }
+
     return true;
 }
 
-bool VulkanBackend::recreate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass) {
-    destroy_framebuffers();
-    return create_framebuffers(swapchain, renderpass);
-}
+void VulkanBackend::destroy_swapchain_dependent_resources() {
+    // FRAMEBUFFERS
 
-void VulkanBackend::destroy_framebuffers() {
     if (m_context.framebuffers) {
         for (uint32_t framebuffer_index = 0;
-            framebuffer_index < m_context.framebuffer_count;
+            framebuffer_index < m_context.swapchain.image_count;
             framebuffer_index++
         ) {
             vulkan_framebuffer_destroy(&m_context, &m_context.framebuffers[framebuffer_index]);
         }
+
         free(m_context.framebuffers);
+        m_context.framebuffers = nullptr;
+    }
+
+    // COMMAND BUFFERS
+
+    if (m_context.graphics_command_buffers) {
+        for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+            vulkan_command_buffer_free(
+                &m_context,
+                m_context.device.graphics_command_pool,
+                &m_context.graphics_command_buffers[index]);
+        }
+
+        free(m_context.graphics_command_buffers);
+        m_context.graphics_command_buffers = nullptr;
+    }
+
+    // ACQUIRE SEMAPHORES
+
+    if (m_context.acquire_semaphores) {
+        for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
+            vkDestroySemaphore(
+                m_context.device.logical_device,
+                m_context.acquire_semaphores[index],
+                m_context.allocator);
+        }
+
+        free(m_context.acquire_semaphores);
+        m_context.acquire_semaphores = nullptr;
+    }
+
+    // SUBMIT SEMAPHORES
+
+    if (m_context.submit_semaphores) {
+        for (uint32_t index = 0; index < m_context.swapchain.image_count; index++) {
+            vkDestroySemaphore(
+                m_context.device.logical_device,
+                m_context.submit_semaphores[index],
+                m_context.allocator);
+        }
+
+        free(m_context.submit_semaphores);
+        m_context.submit_semaphores = nullptr;
+    }
+
+    // FRAME FENCES
+
+    if (m_context.frame_fences) {
+        for (uint32_t index = 0; index < m_context.swapchain.max_frames_in_flight; index++) {
+            vkDestroyFence(
+                m_context.device.logical_device,
+                m_context.frame_fences[index],
+                m_context.allocator);
+        }
+
+        free(m_context.frame_fences);
+        m_context.frame_fences = nullptr;
     }
 }
 

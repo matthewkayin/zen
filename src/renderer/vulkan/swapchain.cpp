@@ -72,21 +72,19 @@ bool vulkan_swapchain_create(
     swapchain_extent.height = std::clamp(swapchain_extent.height, min_extent.height, max_extent.height);
 
     // Determine minimum image count
-    uint32_t image_count = context->device.swapchain_support_info.capabilities.minImageCount + 1;
+    uint32_t target_image_count = context->device.swapchain_support_info.capabilities.minImageCount + 1;
     if (context->device.swapchain_support_info.capabilities.maxImageCount !=
         VULKAN_SWAPCHAIN_MAX_IMAGE_COUNT_LIMITLESS &&
-        image_count > context->device.swapchain_support_info.capabilities.maxImageCount
+        target_image_count > context->device.swapchain_support_info.capabilities.maxImageCount
     ) {
-        image_count = context->device.swapchain_support_info.capabilities.maxImageCount;
+        target_image_count = context->device.swapchain_support_info.capabilities.maxImageCount;
     }
-
-    out_swapchain->max_frames_in_flight = image_count - 1;
 
     // Swapchain create info
     VkSwapchainCreateInfoKHR swapchain_create_info {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface = context->surface,
-        .minImageCount = image_count,
+        .minImageCount = target_image_count,
         .imageFormat = out_swapchain->image_format.format,
         .imageColorSpace = out_swapchain->image_format.colorSpace,
         .imageExtent = swapchain_extent,
@@ -122,6 +120,7 @@ bool vulkan_swapchain_create(
     // Get images from the recently-created swapchain
     VK_CHECK(vkGetSwapchainImagesKHR(
         context->device.logical_device, out_swapchain->handle, &out_swapchain->image_count, nullptr));
+    out_swapchain->max_frames_in_flight = out_swapchain->image_count - 1;
     out_swapchain->images = (VkImage*)malloc(out_swapchain->image_count * sizeof(VkImage));
     out_swapchain->views = (VkImageView*)malloc(out_swapchain->image_count * sizeof(VkImageView));
 

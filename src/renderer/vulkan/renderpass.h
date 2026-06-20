@@ -9,9 +9,3 @@ void vulkan_renderpass_create(
     float depth, uint32_t stencil,
     VulkanRenderpass* out_renderpass);
 void vulkan_renderpass_destroy(VulkanContext* context, VulkanRenderpass* renderpass);
-
-void vulkan_renderpass_begin(
-    VulkanCommandBuffer* command_buffer,
-    VulkanRenderpass* renderpass,
-    VkFramebuffer framebuffer);
-void vulkan_renderpass_end(VulkanCommandBuffer* command_buffer, VulkanRenderpass* renderpass);

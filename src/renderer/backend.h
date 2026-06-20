@@ -4,10 +4,12 @@
 
 struct SDL_Window;
 
-enum class RendererBackendType { VULKAN };
+enum class RendererBackendType {
+    VULKAN
+};
 
 class IRendererBackend {
-  public:
+public:
     static IRendererBackend* create(RendererBackendType type,
                                     SDL_Window* window);
 
@@ -21,7 +23,7 @@ class IRendererBackend {
     virtual bool init() = 0;
     virtual void quit() = 0;
 
-    virtual void on_resized(uint32_t width, uint32_t height) = 0;
+    virtual void on_resized() = 0;
     virtual bool begin_frame(double delta_time) = 0;
     virtual bool end_frame(double delta_time) = 0;
 

@@ -29,13 +29,13 @@ void renderer_quit() {
     delete backend;
 }
 
-void renderer_on_resized(uint32_t width, uint32_t height) {
+void renderer_on_resized() {
     if (!backend) {
         log_warn("renderer_on_resized called with null backend.");
         return;
     }
 
-    backend->on_resized(width, height);
+    backend->on_resized();
 }
 
 bool renderer_draw_frame(RenderPacket* packet) {

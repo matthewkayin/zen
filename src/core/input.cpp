@@ -53,7 +53,7 @@ void input_poll_events() {
         case SDL_EVENT_WINDOW_RESIZED: {
             int width, height;
             SDL_GetWindowSize(state.window, &width, &height);
-            renderer_on_resized((uint32_t)width, (uint32_t)height);
+            renderer_on_resized();
             break;
         }
         }

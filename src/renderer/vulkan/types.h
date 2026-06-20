@@ -119,8 +119,11 @@ struct VulkanContext {
     VulkanSwapchain swapchain;
     VulkanRenderpass main_renderpass;
 
-    uint32_t framebuffer_count;
     VulkanFramebuffer* framebuffers;
+    VulkanCommandBuffer* graphics_command_buffers;
+    VkSemaphore* acquire_semaphores;
+    VkSemaphore* submit_semaphores;
+    VkFence* frame_fences;
 
     // Debug
     VkDebugUtilsMessengerEXT debug_messenger;

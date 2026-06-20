@@ -10,14 +10,14 @@ public:
 
     bool init() override;
     void quit() override;
-    void on_resized(uint32_t width, uint32_t height) override;
+    void on_resized() override;
     bool begin_frame(double delta_time) override;
     bool end_frame(double delta_time) override;
 
 private:
-    bool create_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass);
-    bool recreate_framebuffers(VulkanSwapchain* swapchain, VulkanRenderpass* renderpass);
-    void destroy_framebuffers();
+    bool recreate_swapchain();
+    bool create_swapchain_dependent_resources();
+    void destroy_swapchain_dependent_resources();
 
     VulkanContext m_context;
 };
