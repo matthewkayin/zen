@@ -8,7 +8,7 @@ OBJ_DIR         := obj
 SRC_DIR         := src
 
 CXX             := clang++
-CXX_FLAGS       := -std=c++17 -Wall -Wextra -Wshadow -fno-exceptions
+CXX_FLAGS       := -std=c++17 -Wall -Wextra -Wshadow -fno-exceptions -Wno-missing-designated-field-initializers
 LD_FLAGS        :=
 
 INCLUDE_FLAGS   := -Isrc -Ivendor

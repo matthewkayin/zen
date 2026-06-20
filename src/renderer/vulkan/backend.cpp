@@ -27,13 +27,15 @@ bool VulkanBackend::init() {
     m_context.framebuffer_size_last_generation = 0;
 
     // Vulkan application info
-    VkApplicationInfo app_info{};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = ZEN_APP_NAME;
-    app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    app_info.pEngineName = "Zen Engine";
-    app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    app_info.apiVersion = VK_API_VERSION_1_4;
+    VkApplicationInfo app_info {
+        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pNext = nullptr,
+        .pApplicationName = ZEN_APP_NAME,
+        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+        .pEngineName = "Zen Engine",
+        .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+        .apiVersion = VK_API_VERSION_1_4
+    };
 
     // Extension and layer names
     std::vector<const char*> extension_names;
@@ -93,13 +95,16 @@ bool VulkanBackend::init() {
 #endif
 
     // Instance create info
-    VkInstanceCreateInfo instance_create_info{};
-    instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instance_create_info.pApplicationInfo = &app_info;
-    instance_create_info.enabledExtensionCount = (uint32_t)extension_names.size();
-    instance_create_info.ppEnabledExtensionNames = extension_names.data();
-    instance_create_info.enabledLayerCount = (uint32_t)layer_names.size();
-    instance_create_info.ppEnabledLayerNames = layer_names.data();
+    VkInstanceCreateInfo instance_create_info {
+        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .pApplicationInfo = &app_info,
+        .enabledLayerCount = (uint32_t)layer_names.size(),
+        .ppEnabledLayerNames = layer_names.data(),
+        .enabledExtensionCount = (uint32_t)extension_names.size(),
+        .ppEnabledExtensionNames = extension_names.data()
+    };
 
     // Create instance
     VkResult result = vkCreateInstance(&instance_create_info, m_context.allocator, &m_context.instance);
@@ -146,8 +151,9 @@ bool VulkanBackend::init() {
     }
 
     // Init swapchain
-    if (!vulkan_swapchain_create(
-        &m_context, m_context.framebuffer_width, m_context.framebuffer_height, &m_context.swapchain)) {
+    if (!vulkan_swapchain_create(&m_context, m_context.framebuffer_width, m_context.framebuffer_height,
+        &m_context.swapchain)
+    ) {
         return false;
     }
 
@@ -155,6 +161,9 @@ bool VulkanBackend::init() {
 }
 
 void VulkanBackend::quit() {
+    log_info("Destroying Vulkan swapchain...");
+    vulkan_swapchain_destroy(&m_context, &m_context.swapchain);
+
     log_info("Destroying Vulkan device...");
     vulkan_device_destroy(&m_context);
 

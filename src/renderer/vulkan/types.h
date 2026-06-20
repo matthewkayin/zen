@@ -94,6 +94,22 @@ struct VulkanSwapchain {
     VulkanFramebuffer* framebuffers;
 };
 
+// COMMAND BUFFER
+
+enum class VulkanCommandBufferState {
+    READY,
+    RECORDING,
+    IN_RENDER_PASS,
+    RECORDING_ENDED,
+    SUBMITTED,
+    NOT_ALLOCATED
+};
+
+struct VulkanCommandBuffer {
+    VkCommandBuffer handle;
+    VulkanCommandBufferState state;
+};
+
 // CONTEXT
 
 struct VulkanContext {

@@ -19,20 +19,27 @@ bool vulkan_image_create(
     out_image->width = width;
     out_image->height = height;
 
-    VkImageCreateInfo image_create_info{};
-    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_create_info.imageType = image_type;
-    image_create_info.extent.width = width;
-    image_create_info.extent.height = height;
-    image_create_info.extent.depth = 1;
-    image_create_info.mipLevels = 4;
-    image_create_info.arrayLayers = 1;
-    image_create_info.format = format;
-    image_create_info.tiling = tiling;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_create_info.usage = usage;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkImageCreateInfo image_create_info {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .imageType = image_type,
+        .format = format,
+        .extent = {
+            .width = width,
+            .height = height,
+            .depth = 1
+        },
+        .mipLevels = 4,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = tiling,
+        .usage = usage,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
 
     VK_CHECK(vkCreateImage(
         context->device.logical_device, &image_create_info, context->allocator, &out_image->handle));
@@ -49,10 +56,12 @@ bool vulkan_image_create(
     }
 
     // Allocate memory
-    VkMemoryAllocateInfo memory_allocate_info{};
-    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_info.allocationSize = memory_requirements.size;
-    memory_allocate_info.memoryTypeIndex = memory_type_index;
+    VkMemoryAllocateInfo memory_allocate_info {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
+        .allocationSize = memory_requirements.size,
+        .memoryTypeIndex = memory_type_index
+    };
     VK_CHECK(vkAllocateMemory(
         context->device.logical_device, &memory_allocate_info, context->allocator, &out_image->memory));
 
@@ -74,16 +83,21 @@ void vulkan_image_view_create(
     VulkanImage* image,
     VkImageAspectFlags aspect_flags
 ) {
-    VkImageViewCreateInfo view_create_info{};
-    view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_create_info.image = image->handle;
-    view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_create_info.format = format;
-    view_create_info.subresourceRange.aspectMask = aspect_flags;
-    view_create_info.subresourceRange.baseMipLevel = 0;
-    view_create_info.subresourceRange.levelCount = 1;
-    view_create_info.subresourceRange.baseArrayLayer = 0;
-    view_create_info.subresourceRange.layerCount = 1;
+    VkImageViewCreateInfo view_create_info {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .image = image->handle,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = aspect_flags,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
 
     VK_CHECK(vkCreateImageView(
         context->device.logical_device, &view_create_info, context->allocator, &image->view));

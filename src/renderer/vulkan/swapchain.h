@@ -3,14 +3,10 @@
 #include "renderer/vulkan/types.h"
 
 bool vulkan_swapchain_create(
-    VulkanContext* context,
-    uint32_t width,
-    uint32_t height,
+    VulkanContext* context, uint32_t width, uint32_t height,
     VulkanSwapchain* out_swapchain);
 bool vulkan_swapchain_recreate(
-    VulkanContext* context,
-    uint32_t width,
-    uint32_t height,
+    VulkanContext* context, uint32_t width, uint32_t height,
     VulkanSwapchain* out_swapchain);
 void vulkan_swapchain_destroy(VulkanContext* context, VulkanSwapchain* swapchain);
 

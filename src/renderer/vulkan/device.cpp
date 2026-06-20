@@ -52,12 +52,14 @@ bool vulkan_device_create(VulkanContext* context) {
     std::vector<VkDeviceQueueCreateInfo> queue_create_infos(queue_indices.size());
     float queue_priority = 1.0f;
     for (uint32_t index = 0; index < queue_indices.size(); index++) {
-        queue_create_infos[index].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queue_create_infos[index].queueFamilyIndex = queue_indices[index];
-        queue_create_infos[index].pNext = nullptr;
-        queue_create_infos[index].flags = 0;
-        queue_create_infos[index].queueCount = 1;
-        queue_create_infos[index].pQueuePriorities = &queue_priority;
+        queue_create_infos[index] = {
+            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .queueFamilyIndex = queue_indices[index],
+            .queueCount = 1,
+            .pQueuePriorities = &queue_priority
+        };
     }
 
     // Request device features
@@ -65,15 +67,18 @@ bool vulkan_device_create(VulkanContext* context) {
     device_features.samplerAnisotropy = VK_TRUE;
 
     // Device create info
-    VkDeviceCreateInfo device_create_info{};
-    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.queueCreateInfoCount = (uint32_t)queue_create_infos.size();
-    device_create_info.pQueueCreateInfos = queue_create_infos.data();
-    device_create_info.pEnabledFeatures = &device_features;
-    device_create_info.enabledExtensionCount = ARRAY_LENGTH(VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES);
-    device_create_info.ppEnabledExtensionNames = VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES;
-    device_create_info.enabledLayerCount = 0;
-    device_create_info.ppEnabledLayerNames = nullptr;
+    VkDeviceCreateInfo device_create_info {
+        .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .queueCreateInfoCount = (uint32_t)queue_create_infos.size(),
+        .pQueueCreateInfos = queue_create_infos.data(),
+        .enabledLayerCount = 0,
+        .ppEnabledLayerNames = nullptr,
+        .enabledExtensionCount = ARRAY_LENGTH(VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES),
+        .ppEnabledExtensionNames = VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES,
+        .pEnabledFeatures = &device_features
+    };
 
     // Create the device
     VK_CHECK(vkCreateDevice(
@@ -220,8 +225,7 @@ bool vulkan_device_select_physical_device(VulkanContext* context) {
         VulkanDevice candidate_device;
         vulkan_device_init_from_physical_device(physical_devices[device_index], context->surface, &candidate_device);
 
-        if (vulkan_device_meets_requirements(
-            &candidate_device, required_device_capabilities,
+        if (vulkan_device_meets_requirements(&candidate_device, required_device_capabilities,
             ARRAY_LENGTH(VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES), VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES)
         ) {
             // Print device info
@@ -319,6 +323,9 @@ void vulkan_device_init_from_physical_device(
             out_device->present_queue_index = family_index;
         }
     }
+
+    vulkan_device_query_swapchain_support(physical_device, surface, &out_device->swapchain_support_info);
+
     log_info("       %d |       %d |       %d |        %d | %s",
         (bool)(out_device->graphics_queue_index != VULKAN_PHYSICAL_DEVICE_QUEUE_FAMILY_NOT_SUPPORTED),
         (bool)(out_device->present_queue_index != VULKAN_PHYSICAL_DEVICE_QUEUE_FAMILY_NOT_SUPPORTED),
@@ -358,6 +365,12 @@ bool vulkan_device_meets_requirements(
 
     if ((capabilities & required_capabilities) != required_capabilities) {
         log_info("Device %s does not meet required capabilities.", device->properties.deviceName);
+        return false;
+    }
+
+    // Check swapchain support
+    if (device->swapchain_support_info.formats.empty() || device->swapchain_support_info.present_modes.empty()) {
+        log_info("Device %s lacks required swapchain support.", device->properties.deviceName);
         return false;
     }
 

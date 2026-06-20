@@ -16,11 +16,13 @@ static const uint32_t VULKAN_SURFACE_SIZE_DETERMINED_BY_SWAPCHAIN_EXTENT = UINT3
 static const uint32_t VULKAN_SWAPCHAIN_MAX_IMAGE_COUNT_LIMITLESS = 0;
 
 bool vulkan_swapchain_create(
-    VulkanContext* context,
-    uint32_t width,
-    uint32_t height,
+    VulkanContext* context, uint32_t width, uint32_t height,
     VulkanSwapchain* out_swapchain
 ) {
+    // Requery swapchain support
+    vulkan_device_query_swapchain_support(
+        context->device.physical_device, context->surface, &context->device.swapchain_support_info);
+
     // Choose a swap surface format, using the first format as a default
     out_swapchain->image_format = context->device.swapchain_support_info.formats[0];
     for (uint32_t format_index = 0;
@@ -48,10 +50,6 @@ bool vulkan_swapchain_create(
             break;
         }
     }
-
-    // Require swapchain support
-    vulkan_device_query_swapchain_support(
-        context->device.physical_device, context->surface, &context->device.swapchain_support_info);
 
     // Swapchain extent
     VkExtent2D swapchain_extent;
@@ -84,15 +82,16 @@ bool vulkan_swapchain_create(
     out_swapchain->max_frames_in_flight = image_count - 1;
 
     // Swapchain create info
-    VkSwapchainCreateInfoKHR swapchain_create_info{};
-    swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchain_create_info.surface = context->surface;
-    swapchain_create_info.minImageCount = image_count;
-    swapchain_create_info.imageFormat = out_swapchain->image_format.format;
-    swapchain_create_info.imageColorSpace = out_swapchain->image_format.colorSpace;
-    swapchain_create_info.imageExtent = swapchain_extent;
-    swapchain_create_info.imageArrayLayers = 1;
-    swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    VkSwapchainCreateInfoKHR swapchain_create_info {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = context->surface,
+        .minImageCount = image_count,
+        .imageFormat = out_swapchain->image_format.format,
+        .imageColorSpace = out_swapchain->image_format.colorSpace,
+        .imageExtent = swapchain_extent,
+        .imageArrayLayers = 1,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+    };
 
     // Determine queue family indices
     uint32_t queue_family_indices[] = {
@@ -132,16 +131,19 @@ bool vulkan_swapchain_create(
 
     // Create views
     for (uint32_t image_index = 0; image_index < out_swapchain->image_count; image_index++) {
-        VkImageViewCreateInfo view_create_info{};
-        view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        view_create_info.image = out_swapchain->images[image_index];
-        view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        view_create_info.format = out_swapchain->image_format.format;
-        view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        view_create_info.subresourceRange.baseMipLevel = 0;
-        view_create_info.subresourceRange.levelCount = 1;
-        view_create_info.subresourceRange.baseArrayLayer = 0;
-        view_create_info.subresourceRange.layerCount = 1;
+        VkImageViewCreateInfo view_create_info {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = out_swapchain->images[image_index],
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = out_swapchain->image_format.format,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
+            }
+        };
 
         VK_CHECK(vkCreateImageView(
             context->device.logical_device, &view_create_info, context->allocator,
@@ -171,9 +173,7 @@ bool vulkan_swapchain_create(
 }
 
 bool vulkan_swapchain_recreate(
-    VulkanContext* context,
-    uint32_t width,
-    uint32_t height,
+    VulkanContext* context, uint32_t width, uint32_t height,
     VulkanSwapchain* out_swapchain
 ) {
     vulkan_swapchain_destroy(context, out_swapchain);
@@ -225,14 +225,15 @@ void vulkan_swapchain_present(
     VkSemaphore render_complete_semaphore,
     uint32_t present_image_index
 ) {
-    VkPresentInfoKHR present_info{};
-    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    present_info.waitSemaphoreCount = 1;
-    present_info.pWaitSemaphores = &render_complete_semaphore;
-    present_info.swapchainCount = 1;
-    present_info.pSwapchains = &swapchain->handle;
-    present_info.pImageIndices = &present_image_index;
-    present_info.pResults = nullptr;
+    VkPresentInfoKHR present_info {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &render_complete_semaphore,
+        .swapchainCount = 1,
+        .pSwapchains = &swapchain->handle,
+        .pImageIndices = &present_image_index,
+        .pResults = nullptr
+    };
 
     VkResult result = vkQueuePresentKHR(present_queue, &present_info);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
