@@ -40,7 +40,6 @@ void renderer_on_resized() {
 
 bool renderer_draw_frame(RenderPacket* packet) {
     if (!renderer_begin_frame(packet->delta_time)) {
-        log_warn("renderer_begin_frame failed.");
         return true;
     }
     if (!renderer_end_frame(packet->delta_time)) {

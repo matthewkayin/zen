@@ -12,7 +12,6 @@
 #include "vulkan/vulkan_core.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#include <memory>
 #include <vector>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_backend_debug_callback(
@@ -182,6 +181,8 @@ bool VulkanBackend::init() {
 }
 
 void VulkanBackend::quit() {
+    vkDeviceWaitIdle(m_context.device.logical_device);
+
     destroy_swapchain_dependent_resources();
     vulkan_renderpass_destroy(&m_context, &m_context.main_renderpass);
 
@@ -318,13 +319,13 @@ bool VulkanBackend::end_frame(double delta_time) {
 
     VkSubmitInfo submit_info {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &command_buffer->handle,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &m_context.acquire_semaphores[m_context.frame_index],
+        .pWaitDstStageMask = pipeline_stage_flags,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &command_buffer->handle,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &m_context.submit_semaphores[m_context.image_index],
-        .pWaitDstStageMask = pipeline_stage_flags
+        .pSignalSemaphores = &m_context.submit_semaphores[m_context.image_index]
     };
 
     VkResult submit_result = vkQueueSubmit(
