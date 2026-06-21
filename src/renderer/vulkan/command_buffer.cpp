@@ -89,6 +89,14 @@ void vulkan_command_buffer_end_renderpass(VulkanCommandBuffer* command_buffer) {
     command_buffer->state = VulkanCommandBufferState::RECORDING;
 }
 
+void vulkan_command_buffer_bind_pipeline(
+    VulkanCommandBuffer* command_buffer,
+    VkPipelineBindPoint bind_point,
+    VulkanPipeline* pipeline
+) {
+    vkCmdBindPipeline(command_buffer->handle, bind_point, pipeline->handle);
+}
+
 void vulkan_command_buffer_single_use_alloc_and_begin(
     VulkanContext* context,
     VkCommandPool pool,

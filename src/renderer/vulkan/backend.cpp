@@ -9,7 +9,9 @@
 #include "renderer/vulkan/renderpass.h"
 #include "renderer/vulkan/framebuffer.h"
 #include "renderer/vulkan/command_buffer.h"
-#include "vulkan/vulkan_core.h"
+#include "renderer/vulkan/buffer.h"
+#include "renderer/vulkan/shaders/object.h"
+#include "math/vertex3d.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vector>
@@ -177,13 +179,81 @@ bool VulkanBackend::init() {
         return false;
     }
 
+    // Create built-in shaders
+    if (!vulkan_object_shader_create(&m_context, &m_context.object_shader)) {
+        log_error("Error loading built-in object shader.");
+        return false;
+    }
+
+    // BUFFERS
+
+    // Create object vertex buffer
+    VulkanBufferCreateParams vertex_buffer_create_params {
+        .size = 1024 * 1024 * sizeof(Vertex3d),
+        .usage =
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .bind_on_create = true
+    };
+    if (!vulkan_buffer_create(&m_context, &vertex_buffer_create_params, &m_context.object_vertex_buffer)) {
+        log_error("Error creating object vertex buffer.");
+        return false;
+    }
+
+    // Create object index buffer
+    VulkanBufferCreateParams index_buffer_create_params {
+        .size = 1024 * 1024 * sizeof(uint32_t),
+        .usage =
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        .memory_property_flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .bind_on_create = true
+    };
+    if (!vulkan_buffer_create(&m_context, &index_buffer_create_params, &m_context.object_index_buffer)) {
+        log_error("Error creating object index buffer.");
+        return false;
+    }
+
+    m_context.geometry_vertex_offset = 0;
+    m_context.geometry_index_offset = 0;
+
+    // Test code - triangle
+    const Vertex3d vertices[] = {
+        { .position = vec3(0.0f, -0.5f, 0.0f) },
+        { .position = vec3(0.5f, 0.5f, 0.0f) },
+        { .position = vec3(0.0f, 0.5f, 0.0f) }
+    };
+    const uint32_t indices[] = { 0, 1, 2 };
+
+    vulkan_buffer_upload_data(
+        &m_context, m_context.device.graphics_command_pool, m_context.device.graphics_queue,
+        &m_context.object_vertex_buffer, 0, sizeof(vertices), (void*)vertices);
+    vulkan_buffer_upload_data(
+        &m_context, m_context.device.graphics_command_pool, m_context.device.graphics_queue,
+        &m_context.object_index_buffer, 0, sizeof(indices), (void*)indices);
+    // End test code
+
+    log_info("Vulkan backend initialized successfully.");
     return true;
 }
 
 void VulkanBackend::quit() {
     vkDeviceWaitIdle(m_context.device.logical_device);
 
+    // Destroy buffers
+    vulkan_buffer_destroy(&m_context, &m_context.object_vertex_buffer);
+    vulkan_buffer_destroy(&m_context, &m_context.object_index_buffer);
+
+    // Destroy built-in shaders
+    vulkan_object_shader_destroy(&m_context, &m_context.object_shader);
+
+    // Destroy swapchain dependent resources
     destroy_swapchain_dependent_resources();
+
+    // Destroy renderpass
     vulkan_renderpass_destroy(&m_context, &m_context.main_renderpass);
 
     log_info("Destroying Vulkan swapchain...");
@@ -303,6 +373,14 @@ bool VulkanBackend::begin_frame(double delta_time) {
         command_buffer,
         &m_context.main_renderpass,
         m_context.framebuffers[m_context.image_index].handle);
+
+    // Test code - draw triangle
+    vulkan_object_shader_use(&m_context, &m_context.object_shader);
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(command_buffer->handle, 0, 1, &m_context.object_vertex_buffer.handle, offsets);
+    vkCmdBindIndexBuffer(command_buffer->handle, m_context.object_index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(command_buffer->handle, 3, 1, 0, 0, 0);
+    // End test code
 
     return true;
 }

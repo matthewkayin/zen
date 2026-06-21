@@ -9,6 +9,18 @@
         ZEN_ASSERT(expr == VK_SUCCESS);                                        \
     }
 
+// BUFFER
+
+struct VulkanBuffer {
+    uint64_t total_size;
+    VkBuffer handle;
+    VkBufferUsageFlags usage;
+    VkDeviceMemory memory;
+    uint32_t memory_index;
+    VkMemoryPropertyFlags memory_property_flags;
+    bool is_locked;
+};
+
 // DEVICE
 
 struct VulkanSwapchainSupportInfo {
@@ -109,6 +121,26 @@ struct VulkanCommandBuffer {
     VulkanCommandBufferState state;
 };
 
+// SHADER MODULE
+
+struct VulkanShaderStage {
+    VkShaderModuleCreateInfo create_info;
+    VkShaderModule handle;
+    VkPipelineShaderStageCreateInfo shader_stage_create_info;
+};
+
+struct VulkanPipeline {
+    VkPipeline handle;
+    VkPipelineLayout pipeline_layout;
+};
+
+const uint32_t VULKAN_OBJECT_SHADER_STAGE_COUNT = 2;
+
+struct VulkanObjectShader {
+    VulkanShaderStage stages[VULKAN_OBJECT_SHADER_STAGE_COUNT];
+    VulkanPipeline pipeline;
+};
+
 // CONTEXT
 
 struct VulkanContext {
@@ -136,4 +168,10 @@ struct VulkanContext {
     uint32_t frame_index;
     uint32_t image_index;
     bool is_recreating_swapchain;
+
+    VulkanObjectShader object_shader;
+    VulkanBuffer object_vertex_buffer;
+    VulkanBuffer object_index_buffer;
+    uint64_t geometry_vertex_offset;
+    uint64_t geometry_index_offset;
 };

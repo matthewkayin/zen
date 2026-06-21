@@ -20,6 +20,11 @@ void vulkan_command_buffer_begin_renderpass(
     VkFramebuffer framebuffer);
 void vulkan_command_buffer_end_renderpass(VulkanCommandBuffer* command_buffer);
 
+void vulkan_command_buffer_bind_pipeline(
+    VulkanCommandBuffer* command_buffer,
+    VkPipelineBindPoint bind_point,
+    VulkanPipeline* pipeline);
+
 void vulkan_command_buffer_single_use_alloc_and_begin(
     VulkanContext* context,
     VkCommandPool pool,
