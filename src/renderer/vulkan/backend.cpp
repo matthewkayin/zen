@@ -243,11 +243,109 @@ bool VulkanBackend::begin_frame(double delta_time) {
     }
 
     // Wait for the execution of the current fence to complete
+    VkResult fence_wait_result = vkWaitForFences(
+        m_context.device.logical_device,
+        1, &m_context.frame_fences[m_context.frame_index],
+        VK_TRUE, UINT64_MAX);
+    if (fence_wait_result != VK_SUCCESS) {
+        log_warn("VulkanBackend::begin_frame - Fence wait failed with code %s.", vulkan_result_str(fence_wait_result));
+        return false;
+    }
+
+    // Reset fence for current frame
+    VK_CHECK(vkResetFences(
+        m_context.device.logical_device,
+        1, &m_context.frame_fences[m_context.frame_index]));
+
+    // Acquire next image from the swapchain
+    if (!vulkan_swapchain_acquire_next_image_index(
+        &m_context, &m_context.swapchain, UINT64_MAX,
+        m_context.acquire_semaphores[m_context.frame_index],
+        nullptr, &m_context.image_index)
+    ) {
+        return false;
+    }
+
+    // Begin recording commands
+    VulkanCommandBuffer* command_buffer = &m_context.graphics_command_buffers[m_context.image_index];
+    vulkan_command_buffer_reset(command_buffer);
+    vulkan_command_buffer_begin_recording(command_buffer, 0);
+
+    // Dynamic state
+    VkViewport viewport {
+        .x = 0.0f,
+        .y = (float)m_context.framebuffer_height,
+        .width = (float)m_context.framebuffer_width,
+        .height = -(float)m_context.framebuffer_height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    };
+    vkCmdSetViewport(command_buffer->handle, 0, 1, &viewport);
+
+    VkRect2D scissor {
+        .offset = {
+            .x = 0,
+            .y = 0
+        },
+        .extent = {
+            .width = m_context.framebuffer_width,
+            .height = m_context.framebuffer_height
+        }
+    };
+    vkCmdSetScissor(command_buffer->handle, 0, 1, &scissor);
+
+    m_context.main_renderpass.w = (float)m_context.framebuffer_width;
+    m_context.main_renderpass.h = (float)m_context.framebuffer_height;
+
+    // Begin renderpass
+    vulkan_command_buffer_begin_renderpass(
+        command_buffer,
+        &m_context.main_renderpass,
+        m_context.framebuffers[m_context.image_index].handle);
 
     return true;
 }
 
-bool VulkanBackend::end_frame(double delta_time) { return true; }
+bool VulkanBackend::end_frame(double delta_time) {
+    VulkanCommandBuffer* command_buffer = &m_context.graphics_command_buffers[m_context.image_index];
+
+    vulkan_command_buffer_end_renderpass(command_buffer);
+    vulkan_command_buffer_end_recording(command_buffer);
+
+    VkPipelineStageFlags pipeline_stage_flags[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    };
+
+    VkSubmitInfo submit_info {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &command_buffer->handle,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &m_context.acquire_semaphores[m_context.frame_index],
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &m_context.submit_semaphores[m_context.image_index],
+        .pWaitDstStageMask = pipeline_stage_flags
+    };
+
+    VkResult submit_result = vkQueueSubmit(
+        m_context.device.graphics_queue,
+        1, &submit_info,
+        m_context.frame_fences[m_context.frame_index]);
+    if (submit_result != VK_SUCCESS) {
+        log_error("VulkanBackned::end_frame - vkQueueSubmit failed with result %s.", vulkan_result_str(submit_result));
+        return false;
+    }
+
+    vulkan_command_buffer_set_submitted(command_buffer);
+
+    vulkan_swapchain_present(
+        &m_context, &m_context.swapchain,
+        m_context.device.present_queue,
+        m_context.submit_semaphores[m_context.image_index],
+        m_context.image_index);
+
+    return true;
+}
 
 // PRIVATE
 
