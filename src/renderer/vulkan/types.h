@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/asserts.h"
+#include "renderer/shader_types.h"
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -138,6 +139,13 @@ const uint32_t VULKAN_OBJECT_SHADER_STAGE_COUNT = 2;
 
 struct VulkanObjectShader {
     VulkanShaderStage stages[VULKAN_OBJECT_SHADER_STAGE_COUNT];
+
+    VkDescriptorPool global_descriptor_pool;
+    VkDescriptorSetLayout global_descriptor_set_layout;
+    VkDescriptorSet* global_descriptor_sets;
+    GlobalUniformObject global_ubo;
+    VulkanBuffer global_uniform_buffer;
+
     VulkanPipeline pipeline;
 };
 

@@ -42,6 +42,12 @@ bool renderer_draw_frame(RenderPacket* packet) {
     if (!renderer_begin_frame(packet->delta_time)) {
         return true;
     }
+
+    backend->update_global_state({
+        .projection = mat4::identity(),
+        .view = mat4::identity()
+    });
+
     if (!renderer_end_frame(packet->delta_time)) {
         log_error("renderer_end_frame failed. Application shutting down.");
         return false;

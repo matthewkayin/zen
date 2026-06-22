@@ -174,14 +174,14 @@ bool VulkanBackend::init() {
         1.0f, 0,
         &m_context.main_renderpass);
 
-    // Swapchain dependent resources
-    if (!create_swapchain_dependent_resources()) {
-        return false;
-    }
-
     // Create built-in shaders
     if (!vulkan_object_shader_create(&m_context, &m_context.object_shader)) {
         log_error("Error loading built-in object shader.");
+        return false;
+    }
+
+    // Swapchain dependent resources (happens after shaders because it includes shader descriptor sets?)
+    if (!create_swapchain_dependent_resources()) {
         return false;
     }
 
@@ -247,11 +247,11 @@ void VulkanBackend::quit() {
     vulkan_buffer_destroy(&m_context, &m_context.object_vertex_buffer);
     vulkan_buffer_destroy(&m_context, &m_context.object_index_buffer);
 
-    // Destroy built-in shaders
-    vulkan_object_shader_destroy(&m_context, &m_context.object_shader);
-
     // Destroy swapchain dependent resources
     destroy_swapchain_dependent_resources();
+
+    // Destroy built-in shaders
+    vulkan_object_shader_destroy(&m_context, &m_context.object_shader);
 
     // Destroy renderpass
     vulkan_renderpass_destroy(&m_context, &m_context.main_renderpass);
@@ -374,14 +374,6 @@ bool VulkanBackend::begin_frame(double delta_time) {
         &m_context.main_renderpass,
         m_context.framebuffers[m_context.image_index].handle);
 
-    // Test code - draw triangle
-    vulkan_object_shader_use(&m_context, &m_context.object_shader);
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(command_buffer->handle, 0, 1, &m_context.object_vertex_buffer.handle, offsets);
-    vkCmdBindIndexBuffer(command_buffer->handle, m_context.object_index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(command_buffer->handle, 3, 1, 0, 0, 0);
-    // End test code
-
     return true;
 }
 
@@ -424,6 +416,22 @@ bool VulkanBackend::end_frame(double delta_time) {
         m_context.image_index);
 
     return true;
+}
+
+void VulkanBackend::update_global_state(GlobalUniformObject global_ubo) {
+    VulkanCommandBuffer* command_buffer = &m_context.graphics_command_buffers[m_context.image_index];
+
+    vulkan_object_shader_use(&m_context, &m_context.object_shader);
+    m_context.object_shader.global_ubo = global_ubo;
+    vulkan_object_shader_update_global_state(&m_context, &m_context.object_shader);
+
+    // Test code - draw triangle
+    vulkan_object_shader_use(&m_context, &m_context.object_shader);
+    VkDeviceSize offsets[] = { 0 };
+    vkCmdBindVertexBuffers(command_buffer->handle, 0, 1, &m_context.object_vertex_buffer.handle, offsets);
+    vkCmdBindIndexBuffer(command_buffer->handle, m_context.object_index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(command_buffer->handle, 3, 1, 0, 0, 0);
+    // End test code
 }
 
 // PRIVATE
@@ -603,6 +611,11 @@ bool VulkanBackend::create_swapchain_dependent_resources() {
             &m_context.frame_fences[index]));
     }
 
+    // OBJECT SHADER DESCRIPTORS
+    if (!vulkan_object_shader_alloc_descriptor_sets(&m_context, &m_context.object_shader)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -676,6 +689,10 @@ void VulkanBackend::destroy_swapchain_dependent_resources() {
         free(m_context.frame_fences);
         m_context.frame_fences = nullptr;
     }
+
+    // OBJECT SHADER DESCRIPTORS
+
+    vulkan_object_shader_free_descriptor_sets(&m_context, &m_context.object_shader);
 }
 
 // INTERNAL
