@@ -173,9 +173,7 @@ bool vulkan_object_shader_alloc_descriptor_sets(VulkanContext* context, VulkanOb
 }
 
 void vulkan_object_shader_free_descriptor_sets(VulkanContext* context, VulkanObjectShader* shader) {
-    vkFreeDescriptorSets(
-        context->device.logical_device, shader->global_descriptor_pool,
-        context->swapchain.image_count, shader->global_descriptor_sets);
+    vkResetDescriptorPool(context->device.logical_device, shader->global_descriptor_pool, 0);
     free(shader->global_descriptor_sets);
 }
 
@@ -186,7 +184,6 @@ void vulkan_object_shader_destroy(VulkanContext* context, VulkanObjectShader* sh
     vkDestroyDescriptorPool(context->device.logical_device, shader->global_descriptor_pool, context->allocator);
     vkDestroyDescriptorSetLayout(
         context->device.logical_device, shader->global_descriptor_set_layout, context->allocator);
-    free(shader->global_descriptor_sets);
 
     for (uint32_t stage_index = 0; stage_index < VULKAN_OBJECT_SHADER_STAGE_COUNT; stage_index++) {
         vkDestroyShaderModule(context->device.logical_device, shader->stages[stage_index].handle, context->allocator);
