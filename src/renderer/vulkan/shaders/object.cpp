@@ -45,21 +45,6 @@ bool vulkan_object_shader_create(VulkanContext* context, VulkanObjectShader* out
         context->device.logical_device, &global_ubo_layout_create_info,
         context->allocator, &out_shader->global_descriptor_set_layout));
 
-    // Global UBO - Descriptor Pool
-    VkDescriptorPoolSize global_pool_size {
-        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = context->swapchain.image_count
-    };
-    VkDescriptorPoolCreateInfo global_pool_create_info {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .maxSets = context->swapchain.image_count,
-        .poolSizeCount = 1,
-        .pPoolSizes = &global_pool_size
-    };
-    VK_CHECK(vkCreateDescriptorPool(
-        context->device.logical_device, &global_pool_create_info,
-        context->allocator, &out_shader->global_descriptor_pool));
-
     // Pipeline creation
 
     VkViewport viewport {
@@ -130,6 +115,26 @@ bool vulkan_object_shader_create(VulkanContext* context, VulkanObjectShader* out
         return false;
     }
 
+    return true;
+}
+
+bool vulkan_object_shader_alloc_descriptor_sets(VulkanContext* context, VulkanObjectShader* shader) {
+    // Global UBO - Descriptor Pool
+    VkDescriptorPoolSize global_pool_size {
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = context->swapchain.image_count
+    };
+    VkDescriptorPoolCreateInfo global_pool_create_info {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .maxSets = context->swapchain.image_count,
+        .poolSizeCount = 1,
+        .pPoolSizes = &global_pool_size
+    };
+
+    VK_CHECK(vkCreateDescriptorPool(
+        context->device.logical_device, &global_pool_create_info,
+        context->allocator, &shader->global_descriptor_pool));
+
     // Create global uniform buffer
     VulkanBufferCreateParams global_uniform_buffer_create_params {
         .size = context->swapchain.image_count * sizeof(GlobalUniformObject),
@@ -140,15 +145,11 @@ bool vulkan_object_shader_create(VulkanContext* context, VulkanObjectShader* out
             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         .bind_on_create = true
     };
-    if (!vulkan_buffer_create(context, &global_uniform_buffer_create_params, &out_shader->global_uniform_buffer)) {
+    if (!vulkan_buffer_create(context, &global_uniform_buffer_create_params, &shader->global_uniform_buffer)) {
         log_error("vulkan_object_shader_create() - Failed to create global uniform buffer.");
         return false;
     }
 
-    return true;
-}
-
-bool vulkan_object_shader_alloc_descriptor_sets(VulkanContext* context, VulkanObjectShader* shader) {
     // Alloc global descriptor sets
     std::vector<VkDescriptorSetLayout> global_descriptor_set_layouts(
         context->swapchain.image_count, shader->global_descriptor_set_layout);
@@ -173,15 +174,14 @@ bool vulkan_object_shader_alloc_descriptor_sets(VulkanContext* context, VulkanOb
 }
 
 void vulkan_object_shader_free_descriptor_sets(VulkanContext* context, VulkanObjectShader* shader) {
-    vkResetDescriptorPool(context->device.logical_device, shader->global_descriptor_pool, 0);
+    vkDestroyDescriptorPool(context->device.logical_device, shader->global_descriptor_pool, 0);
+    vulkan_buffer_destroy(context, &shader->global_uniform_buffer);
     free(shader->global_descriptor_sets);
 }
 
 void vulkan_object_shader_destroy(VulkanContext* context, VulkanObjectShader* shader) {
-    vulkan_buffer_destroy(context, &shader->global_uniform_buffer);
     vulkan_pipeline_destroy(context, &shader->pipeline);
 
-    vkDestroyDescriptorPool(context->device.logical_device, shader->global_descriptor_pool, context->allocator);
     vkDestroyDescriptorSetLayout(
         context->device.logical_device, shader->global_descriptor_set_layout, context->allocator);
 
