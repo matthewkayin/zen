@@ -230,3 +230,10 @@ void vulkan_object_shader_update_global_state(VulkanContext* context, VulkanObje
         command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         shader->pipeline.pipeline_layout, 0, 1, &global_descriptor, 0, nullptr);
 }
+
+void vulkan_object_shader_update_object(VulkanContext* context, VulkanObjectShader* shader, mat4 model) {
+    VkCommandBuffer command_buffer = context->graphics_command_buffers[context->image_index].handle;
+
+    vkCmdPushConstants(command_buffer, shader->pipeline.pipeline_layout,
+        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(model), &model);
+}

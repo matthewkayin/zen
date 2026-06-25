@@ -220,13 +220,15 @@ bool VulkanBackend::init() {
     m_context.geometry_vertex_offset = 0;
     m_context.geometry_index_offset = 0;
 
-    // Test code - triangle
+    // Test code - square
+    const float square_extent = 5.0f;
     const Vertex3d vertices[] = {
-        { .position = vec3(0.0f, -0.5f, 0.0f) },
-        { .position = vec3(0.5f, 0.5f, 0.0f) },
-        { .position = vec3(0.0f, 0.5f, 0.0f) }
+        { .position = vec3(-square_extent, -square_extent, 0.0f) },
+        { .position = vec3(square_extent, square_extent, 0.0f) },
+        { .position = vec3(-square_extent, square_extent, 0.0f) },
+        { .position = vec3(square_extent, -square_extent, 0.0f) }
     };
-    const uint32_t indices[] = { 0, 1, 2 };
+    const uint32_t indices[] = { 0, 1, 2, 0, 3, 1 };
 
     vulkan_buffer_upload_data(
         &m_context, m_context.device.graphics_command_pool, m_context.device.graphics_queue,
@@ -419,18 +421,22 @@ bool VulkanBackend::end_frame(double delta_time) {
 }
 
 void VulkanBackend::update_global_state(GlobalUniformObject global_ubo) {
-    VulkanCommandBuffer* command_buffer = &m_context.graphics_command_buffers[m_context.image_index];
-
     vulkan_object_shader_use(&m_context, &m_context.object_shader);
     m_context.object_shader.global_ubo = global_ubo;
     vulkan_object_shader_update_global_state(&m_context, &m_context.object_shader);
+}
+
+void VulkanBackend::update_object(mat4 model) {
+    VulkanCommandBuffer* command_buffer = &m_context.graphics_command_buffers[m_context.image_index];
+
+    vulkan_object_shader_update_object(&m_context, &m_context.object_shader, model);
 
     // Test code - draw triangle
     vulkan_object_shader_use(&m_context, &m_context.object_shader);
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(command_buffer->handle, 0, 1, &m_context.object_vertex_buffer.handle, offsets);
     vkCmdBindIndexBuffer(command_buffer->handle, m_context.object_index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(command_buffer->handle, 3, 1, 0, 0, 0);
+    vkCmdDrawIndexed(command_buffer->handle, 6, 1, 0, 0, 0);
     // End test code
 }
 

@@ -2,6 +2,7 @@
 
 #include "core/logger.h"
 #include "renderer/backend.h"
+#include "math/quat.h"
 
 bool renderer_begin_frame(double delta_time);
 bool renderer_end_frame(double delta_time);
@@ -44,9 +45,15 @@ bool renderer_draw_frame(RenderPacket* packet) {
     }
 
     backend->update_global_state({
-        .projection = mat4::identity(),
-        .view = mat4::identity()
+        .projection = mat4::perspective(45.0f * ZEN_DEG_TO_RAD, 1280.0f / 720.0f, 0.1f, 1000.0f),
+        .view = mat4::translation(vec3(0.0f, 0.0f, 30.0f)).inversed()
     });
+
+    static float angle = 0.01f;
+    angle += 1.0f * packet->delta_time;
+    quat rotation = quat::from_axis_angle(vec3::forward(), angle, false);
+    mat4 model = rotation.to_rotation_matrix(vec3(0.0f));
+    backend->update_object(model);
 
     if (!renderer_end_frame(packet->delta_time)) {
         log_error("renderer_end_frame failed. Application shutting down.");

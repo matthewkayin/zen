@@ -112,11 +112,20 @@ bool vulkan_graphics_pipeline_create(
         .primitiveRestartEnable = VK_FALSE
     };
 
+    // Push constants
+    VkPushConstantRange push_constant_range {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        .offset = 0 * sizeof(mat4),
+        .size = 2 * sizeof(mat4)
+    };
+
     // Pipeline layout
     VkPipelineLayoutCreateInfo pipeline_layout_create_info {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = params->descriptor_set_layout_count,
-        .pSetLayouts = params->descriptor_set_layouts
+        .pSetLayouts = params->descriptor_set_layouts,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_constant_range
     };
 
     VK_CHECK(vkCreatePipelineLayout(

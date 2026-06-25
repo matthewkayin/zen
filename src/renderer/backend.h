@@ -29,6 +29,7 @@ public:
     virtual bool end_frame(double delta_time) = 0;
 
     virtual void update_global_state(GlobalUniformObject global_ubo) = 0;
+    virtual void update_object(mat4 model) = 0;
 
     SDL_Window* m_window;
     uint64_t m_frame_number;

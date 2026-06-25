@@ -2,15 +2,14 @@
 
 #include "renderer/vulkan/backend.h"
 
-IRendererBackend* IRendererBackend::create(RendererBackendType type,
-                                           SDL_Window* window) {
+IRendererBackend* IRendererBackend::create( RendererBackendType type, SDL_Window* window) {
     IRendererBackend* backend = nullptr;
 
     switch (type) {
-    case RendererBackendType::VULKAN: {
-        backend = new VulkanBackend();
-        break;
-    }
+        case RendererBackendType::VULKAN: {
+            backend = new VulkanBackend();
+            break;
+        }
     }
 
     if (backend == nullptr) {

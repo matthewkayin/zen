@@ -13,7 +13,9 @@ public:
     void on_resized() override;
     bool begin_frame(double delta_time) override;
     bool end_frame(double delta_time) override;
+
     void update_global_state(GlobalUniformObject global_ubo) override;
+    void update_object(mat4 model) override;
 
 private:
     bool recreate_swapchain();
