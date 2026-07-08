@@ -232,6 +232,14 @@ struct mat4 {
         return (result_x * result_y) * result_z;
     }
 
+    static mat4 euler_vec3(vec3 radians) {
+        mat4 result_x = mat4::euler_x(radians.x);
+        mat4 result_y = mat4::euler_y(radians.y);
+        mat4 result_z = mat4::euler_z(radians.z);
+
+        return (result_x * result_y) * result_z;
+    }
+
     vec3 forward() const {
         return vec3(-data[2], -data[6], -data[10]).normalized();
     }

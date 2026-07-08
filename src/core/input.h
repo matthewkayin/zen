@@ -1,5 +1,6 @@
 #pragma once
 
+#include "math/ivec2.h"
 #include <SDL3/SDL.h>
 
 enum InputMouseButton {
@@ -23,3 +24,7 @@ bool input_is_key_pressed(SDL_Scancode scancode);
 bool input_is_mouse_button_just_pressed(InputMouseButton button);
 bool input_is_mouse_button_just_released(InputMouseButton button);
 bool input_is_mouse_button_pressed(InputMouseButton button);
+
+// Mouse movement
+ivec2 input_get_mouse_position();
+ivec2 input_get_mouse_motion();
