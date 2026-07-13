@@ -1,7 +1,6 @@
 #include "core/input.h"
 #include "core/logger.h"
-#include "renderer/frontend.h"
-#include "camera.h"
+#include "renderer/renderer.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
@@ -27,45 +26,12 @@ int main() {
         return 1;
     }
 
-    Camera camera;
-    camera.set_position(vec3(0.0f, 0.0f, 30.0f));
-
     while (game_is_running()) {
         double delta_time = game_timekeep();
         input_poll_events();
         state.updates++;
 
-        vec3 direction = vec3(0.0f);
-        if (input_is_key_pressed(SDL_SCANCODE_W)) {
-            direction.z = -1.0f;
-        }
-        if (input_is_key_pressed(SDL_SCANCODE_S)) {
-            direction.z = 1.0f;
-        }
-        if (input_is_key_pressed(SDL_SCANCODE_A)) {
-            direction.x = -1.0f;
-        }
-        if (input_is_key_pressed(SDL_SCANCODE_D)) {
-            direction.x = 1.0f;
-        }
-        if (input_is_key_pressed(SDL_SCANCODE_E)) {
-            direction.y = 1.0f;
-        }
-        if (input_is_key_pressed(SDL_SCANCODE_Q)) {
-            direction.y = -1.0f;
-        }
-        const float CAMERA_SPEED = 25.0f;
-        camera.set_position(camera.get_position() + (direction * CAMERA_SPEED * delta_time));
-
-        const float CAMERA_ROTATION_SPEED = 5.0f;
-        ivec2 mouse_motion = input_get_mouse_motion();
-        camera.yaw(-mouse_motion.x * CAMERA_ROTATION_SPEED * delta_time);
-        camera.pitch(-mouse_motion.y * CAMERA_ROTATION_SPEED * delta_time);
-
-        RenderPacket packet;
-        packet.delta_time = delta_time;
-        renderer_set_view(camera.get_calculated_view());
-        renderer_draw_frame(&packet);
+        renderer_draw_frame();
         state.frames++;
     }
 

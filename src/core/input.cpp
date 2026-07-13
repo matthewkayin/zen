@@ -1,5 +1,5 @@
 #include "input.h"
-#include "renderer/frontend.h"
+#include "renderer/renderer.h"
 
 struct InputState {
     SDL_Window* window;

@@ -11,6 +11,10 @@ CXX             := clang++
 CXX_FLAGS       := -std=c++17 -Wall -Wextra -Wshadow -fno-exceptions
 LD_FLAGS        :=
 
+SHADER_XX       := slangc
+SHADER_XX_FLAGS := -target spirv -profile spirv_1_4 -emit-spirv-directly \
+				   -fvk-use-entrypoint-name -entry vertex_main -entry fragment_main
+
 INCLUDE_FLAGS   := -Isrc -Ivendor
 DEFINES         := -D_CRT_SECURE_NO_WARNINGS
 
@@ -45,9 +49,7 @@ ifeq ($(OS),Windows_NT)
 	DIRECTORIES := \$(SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SRC_DIR) /S /AD /B | findstr /i $(SRC_DIR)))
 
 	SHADER_SRC_DIR := res\shader
-	SHADER_FILES := \
-	    $(call rwildcard,$(SHADER_SRC_DIR)/,*.vert.glsl) \
-    	$(call rwildcard,$(SHADER_SRC_DIR)/,*.frag.glsl)
+	SHADER_FILES := $(call rwildcard,$(SHADER_SRC_DIR)/,*.slang)
 	SHADER_DIRECTORIES := \$(SHADER_SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SHADER_SRC_DIR) /S /AD /B | findstr /i $(SHADER_SRC_DIR)))
 
 	CXX_FLAGS += \
@@ -108,7 +110,7 @@ endif
 # ------------------------------------------------------------------------------
 
 OBJ_FILES := $(SRC_FILES:%=$(OBJ_DIR)/%.o)
-SPV_FILES = $(patsubst $(SHADER_SRC_DIR)/%,$(BUILD_DIR)/$(SHADER_SRC_DIR)/%,$(SHADER_FILES:.glsl=.spv))
+SPV_FILES = $(patsubst $(SHADER_SRC_DIR)/%,$(BUILD_DIR)/$(SHADER_SRC_DIR)/%,$(SHADER_FILES:.slang=.spv))
 
 # ------------------------------------------------------------------------------
 # Target Recipes
@@ -158,15 +160,10 @@ $(OBJ_DIR)/%.cpp.o: %.cpp
 .PHONY: shader-compile
 shader-compile: $(SPV_FILES)
 
-# Compile vertex glsl to spir-v
-$(BUILD_DIR)/%.vert.spv: %.vert.glsl
+# Compile slang to spir-v
+$(BUILD_DIR)/%.spv: %.slang
 	@echo   $<...
-	@glslc -fshader-stage=vert $< -o $@
-
-# Compile fragment glsl to spir-v
-$(BUILD_DIR)/%.frag.spv: %.frag.glsl
-	@echo   $<...
-	@glslc -fshader-stage=frag $< -o $@
+	@$(SHADER_XX) $(SHADER_XX_FLAGS) $< -o $@
 
 # ------------------------------------------------------------------------------
 # Link
