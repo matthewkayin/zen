@@ -20,6 +20,7 @@ struct RendererState {
     SDL_Window* window;
     VulkanContext context;
     VulkanBuffer vertex_buffer;
+    VulkanBuffer index_buffer;
 };
 static RendererState state;
 
@@ -122,9 +123,10 @@ bool renderer_init(SDL_Window* window) {
 
     // Create vertex buffer
     Vertex vertices[] = {
-        { .position = vec2(0.0f, -0.5f), .color = vec3(1.0f, 1.0f, 1.0f) },
+        { .position = vec2(-0.5f, -0.5f), .color = vec3(1.0f, 1.0f, 1.0f) },
+        { .position = vec2(0.5f, -0.5f), .color = vec3(0.0f, 0.0f, 1.0f) },
         { .position = vec2(0.5f, 0.5f), .color = vec3(0.0f, 1.0f, 0.0f) },
-        { .position = vec2(-0.5f, 0.5f), .color = vec3(0.0f, 0.0f, 1.0f) }
+        { .position = vec2(-0.5f, 0.5f), .color = vec3(1.0f, 0.0f, 0.0f) },
     };
     vulkan_buffer_create(&state.context, {
         .size = sizeof(vertices),
@@ -136,6 +138,20 @@ bool renderer_init(SDL_Window* window) {
         .offset = 0,
         .size = sizeof(vertices),
         .data = vertices
+    });
+
+    // Create index buffer
+    uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
+    vulkan_buffer_create(&state.context, {
+        .size = sizeof(indices),
+        .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    }, &state.index_buffer);
+    vulkan_buffer_bind(&state.context, &state.index_buffer, 0);
+    vulkan_buffer_upload_data(&state.context, &state.index_buffer, {
+        .offset = 0,
+        .size = sizeof(indices),
+        .data = indices
     });
 
     state.context.frame_index = 0;
@@ -272,13 +288,15 @@ void renderer_draw_frame() {
     };
     vkCmdSetScissor(state.context.graphics_command_buffers[state.context.frame_index], 0, 1, &scissor);
 
-    vulkan_buffer_bind(&state.context, &state.vertex_buffer, 0);
     VkDeviceSize offsets = 0;
     vkCmdBindVertexBuffers(
         state.context.graphics_command_buffers[state.context.frame_index],
         0, 1, &state.vertex_buffer.handle, &offsets);
+    vkCmdBindIndexBuffer(
+        state.context.graphics_command_buffers[state.context.frame_index],
+        state.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
 
-    vkCmdDraw(state.context.graphics_command_buffers[state.context.frame_index], 3, 1, 0, 0);
+    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], 6, 1, 0, 0, 0);
     vkCmdEndRendering(state.context.graphics_command_buffers[state.context.frame_index]);
 
     // Transition the swapchain image to PRESENT
