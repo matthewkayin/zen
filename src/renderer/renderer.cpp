@@ -29,6 +29,7 @@ void renderer_create_debugger();
 // Internal
 void renderer_create_sync_objects();
 void renderer_destroy_sync_objects();
+void renderer_recreate_swapchain();
 
 bool renderer_init(SDL_Window* window) {
     state.window = window;
@@ -158,10 +159,12 @@ void renderer_on_resized() {
     SDL_GetWindowSize(state.window, &window_width, &window_height);
     state.context.window_width = (uint32_t)window_width;
     state.context.window_height = (uint32_t)window_height;
+
+    renderer_recreate_swapchain();
 }
 
 void renderer_draw_frame() {
-    // Wait for and reset current frame fence
+    // Wait for current frame fence
     VkResult fence_result = vkWaitForFences(
         state.context.device.logical_device,
         1, &state.context.frame_fences[state.context.frame_index], VK_TRUE, UINT64_MAX);
@@ -169,7 +172,6 @@ void renderer_draw_frame() {
         log_error("Error waiting for fence: %s.", vulkan_result_str(fence_result));
         return;
     }
-    vkResetFences(state.context.device.logical_device, 1, &state.context.frame_fences[state.context.frame_index]);
 
     // Acquire next image
     VkResult acquire_result = vkAcquireNextImageKHR(
@@ -179,10 +181,17 @@ void renderer_draw_frame() {
         state.context.acquire_semaphores[state.context.frame_index],
         VK_NULL_HANDLE,
         &state.context.image_index);
-    if (acquire_result != VK_SUCCESS) {
+    if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
+        log_info("vkAcquireNextImageKHR - Swapchain is out of date. Recreating swapchain...");
+        renderer_recreate_swapchain();
+        return;
+    } else if (acquire_result != VK_SUCCESS) {
         log_error("Error acquiring next image: %s.", vulkan_result_str(acquire_result));
         return;
     }
+
+    // Reset current frame fence (only done after we have successfully acquired image to avoid deadlock)
+    vkResetFences(state.context.device.logical_device, 1, &state.context.frame_fences[state.context.frame_index]);
 
     // Begin command buffer
     vkResetCommandBuffer(state.context.graphics_command_buffers[state.context.frame_index], 0);
@@ -249,7 +258,7 @@ void renderer_draw_frame() {
     vulkan_image_transition_layout({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.images[state.context.image_index],
-        .old_layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .src_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
         .dst_access_mask = VK_ACCESS_2_NONE,
@@ -290,7 +299,8 @@ void renderer_draw_frame() {
     };
     VkResult present_result = vkQueuePresentKHR(state.context.device.present_queue, &present_info);
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
-        // TODO: recreate swapchain
+        log_info("vkQueuePresentKHR returned result %s. Recreating swapchain...", vulkan_result_str(present_result));
+        renderer_recreate_swapchain();
     } else if (present_result != VK_SUCCESS) {
         log_error("Failed to present swapchain image: %s.", vulkan_result_str(present_result));
     }
@@ -413,7 +423,7 @@ void renderer_create_debugger() {
 
 void renderer_create_sync_objects() {
     // Acquire semaphores
-    for (uint32_t index = 0; index < VULKAN_MAX_FRAMES_IN_FLIGHT; index++) {
+    for (uint32_t index = 0; index < ARRAY_LENGTH(state.context.acquire_semaphores); index++) {
         VkSemaphoreCreateInfo semaphore_create_info {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
         };
@@ -438,7 +448,7 @@ void renderer_create_sync_objects() {
     }
 
     // Frame fences
-    for (uint32_t index = 0; index < VULKAN_MAX_FRAMES_IN_FLIGHT; index++) {
+    for (uint32_t index = 0; index < ARRAY_LENGTH(state.context.frame_fences); index++) {
         VkFenceCreateInfo fence_create_info {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT
@@ -453,7 +463,7 @@ void renderer_create_sync_objects() {
 
 void renderer_destroy_sync_objects() {
     // Acquire semaphores
-    for (uint32_t index = 0; index < (uint32_t)state.context.swapchain.images.size(); index++) {
+    for (uint32_t index = 0; index < ARRAY_LENGTH(state.context.acquire_semaphores); index++) {
         vkDestroySemaphore(
             state.context.device.logical_device,
             state.context.acquire_semaphores[index],
@@ -461,7 +471,7 @@ void renderer_destroy_sync_objects() {
     }
 
     // Submit semaphores
-    for (uint32_t index = 0; index < VULKAN_MAX_FRAMES_IN_FLIGHT; index++) {
+    for (uint32_t index = 0; index < (uint32_t)state.context.submit_semaphores.size(); index++) {
         vkDestroySemaphore(
             state.context.device.logical_device,
             state.context.submit_semaphores[index],
@@ -469,10 +479,21 @@ void renderer_destroy_sync_objects() {
     }
 
     // Frame fences
-    for (uint32_t index = 0; index < VULKAN_MAX_FRAMES_IN_FLIGHT; index++) {
+    for (uint32_t index = 0; index < ARRAY_LENGTH(state.context.frame_fences); index++) {
         vkDestroyFence(
             state.context.device.logical_device,
             state.context.frame_fences[index],
             state.context.allocator);
     }
+}
+
+void renderer_recreate_swapchain() {
+    vkDeviceWaitIdle(state.context.device.logical_device);
+
+    renderer_destroy_sync_objects();
+    vulkan_swapchain_destroy(&state.context);
+    vulkan_swapchain_create(&state.context);
+    renderer_create_sync_objects();
+
+    log_info("Swapchain recreated successfully.");
 }

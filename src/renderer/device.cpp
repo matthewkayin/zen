@@ -82,6 +82,7 @@ bool vulkan_device_create(VulkanContext* context) {
     VkPhysicalDeviceVulkan13Features device_vulkan13_features {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
         .pNext = &device_extended_dynamic_state_features,
+        .synchronization2 = VK_TRUE,
         .dynamicRendering = VK_TRUE
     };
     VkPhysicalDeviceVulkan11Features device_vulkan11_features {
@@ -220,6 +221,10 @@ uint32_t vulkan_device_score_physical_device(VkPhysicalDevice device, VkSurfaceK
     }
     if (!device_vulkan11_features.shaderDrawParameters) {
         log_debug("Device does not support shader draw parameters.");
+        return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
+    }
+    if (!device_vulkan13_features.synchronization2) {
+        log_debug("Device does not support synchronization2.");
         return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
     }
     if (!device_vulkan13_features.dynamicRendering) {
