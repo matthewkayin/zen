@@ -39,6 +39,11 @@ struct VulkanPipeline {
     VkPipelineLayout layout;
 };
 
+struct VulkanBuffer {
+    VkBuffer handle;
+    VkDeviceMemory memory;
+};
+
 struct VulkanContext {
     VkInstance instance;
     VkDebugUtilsMessengerEXT debug_messenger;

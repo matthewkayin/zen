@@ -9,6 +9,8 @@
 #include "renderer/swapchain.h"
 #include "renderer/pipeline.h"
 #include "renderer/image.h"
+#include "renderer/buffer.h"
+#include "math/vertex3d.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
@@ -17,6 +19,7 @@
 struct RendererState {
     SDL_Window* window;
     VulkanContext context;
+    VulkanBuffer vertex_buffer;
 };
 static RendererState state;
 
@@ -116,6 +119,24 @@ bool renderer_init(SDL_Window* window) {
         state.context.graphics_command_buffers));
 
     renderer_create_sync_objects();
+
+    // Create vertex buffer
+    Vertex vertices[] = {
+        { .position = vec2(0.0f, -0.5f), .color = vec3(1.0f, 1.0f, 1.0f) },
+        { .position = vec2(0.5f, 0.5f), .color = vec3(0.0f, 1.0f, 0.0f) },
+        { .position = vec2(-0.5f, 0.5f), .color = vec3(0.0f, 0.0f, 1.0f) }
+    };
+    vulkan_buffer_create(&state.context, {
+        .size = sizeof(vertices),
+        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    }, &state.vertex_buffer);
+    vulkan_buffer_bind(&state.context, &state.vertex_buffer, 0);
+    vulkan_buffer_upload_data(&state.context, &state.vertex_buffer, {
+        .offset = 0,
+        .size = sizeof(vertices),
+        .data = vertices
+    });
 
     state.context.frame_index = 0;
 
@@ -250,6 +271,12 @@ void renderer_draw_frame() {
         .extent = state.context.swapchain.extent
     };
     vkCmdSetScissor(state.context.graphics_command_buffers[state.context.frame_index], 0, 1, &scissor);
+
+    vulkan_buffer_bind(&state.context, &state.vertex_buffer, 0);
+    VkDeviceSize offsets = 0;
+    vkCmdBindVertexBuffers(
+        state.context.graphics_command_buffers[state.context.frame_index],
+        0, 1, &state.vertex_buffer.handle, &offsets);
 
     vkCmdDraw(state.context.graphics_command_buffers[state.context.frame_index], 3, 1, 0, 0);
     vkCmdEndRendering(state.context.graphics_command_buffers[state.context.frame_index]);

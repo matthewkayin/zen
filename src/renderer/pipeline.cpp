@@ -3,6 +3,7 @@
 #include "core/logger.h"
 #include "renderer/util.h"
 #include "util/file.h"
+#include "math/vertex3d.h"
 
 bool vulkan_pipeline_create(VulkanContext* context) {
     // Read shader file
@@ -38,8 +39,31 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     };
 
     // Vertex input
+    VkVertexInputBindingDescription vertex_binding_description {
+        .binding = 0,
+        .stride = sizeof(Vertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+    };
+    VkVertexInputAttributeDescription vertex_attribute_descriptions[] = {
+        {
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(Vertex, position)
+        },
+        {
+            .location = 1,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = offsetof(Vertex, color)
+        }
+    };
     VkPipelineVertexInputStateCreateInfo vertex_input_state {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &vertex_binding_description,
+        .vertexAttributeDescriptionCount = ARRAY_LENGTH(vertex_attribute_descriptions),
+        .pVertexAttributeDescriptions = vertex_attribute_descriptions
     };
 
     // Input assembly state

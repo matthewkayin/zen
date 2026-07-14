@@ -1,5 +1,32 @@
 #include "util.h"
 
+#include "core/logger.h"
+
+uint32_t vulkan_find_memory_index(
+    VulkanContext* context,
+    uint32_t type_filter,
+    VkMemoryPropertyFlags property_flags
+) {
+    VkPhysicalDeviceMemoryProperties device_memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(context->device.physical_device, &device_memory_properties);
+
+    for (uint32_t type_index = 0; type_index < device_memory_properties.memoryTypeCount; type_index++) {
+        // Check the memory type against the type filter
+        uint32_t type_flag = 1U << type_index;
+        if (!(type_filter & type_flag)) {
+            continue;
+        }
+
+        // Check to see if the memory type bit is set
+        if ((device_memory_properties.memoryTypes[type_index].propertyFlags & property_flags) == property_flags) {
+            return type_index;
+        }
+    }
+
+    log_warn("vulkan_find_memory_index unable to find suitable memory type.");
+    return VULKAN_MEMORY_TYPE_INDEX_NOT_FOUND;
+}
+
 bool vulkan_result_is_error(VkResult result) {
     switch (result) {
         case VK_SUCCESS:
