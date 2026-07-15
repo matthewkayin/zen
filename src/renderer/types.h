@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/asserts.h"
+#include "math/mat4.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -37,12 +38,22 @@ struct VulkanSwapchain {
 struct VulkanPipeline {
     VkPipeline handle;
     VkPipelineLayout layout;
+    VkDescriptorSetLayout descriptor_set_layout;
 };
 
 struct VulkanBuffer {
     VkBuffer handle;
     VkDeviceMemory memory;
 };
+
+// TODO: move this into the frontend or something?
+struct VulkanUniformBufferObject {
+    mat4 model;
+    mat4 view;
+    mat4 projection;
+    uint8_t padding[64];
+};
+static_assert(sizeof(VulkanUniformBufferObject) == 256ULL, "Some Nvidia cards require this to be exactly 256 bytes.");
 
 struct VulkanContext {
     VkInstance instance;
@@ -61,6 +72,9 @@ struct VulkanContext {
     std::vector<VkSemaphore> submit_semaphores;
     VkFence frame_fences[VULKAN_MAX_FRAMES_IN_FLIGHT];
     VkCommandBuffer graphics_command_buffers[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSet descriptor_sets[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VulkanBuffer uniform_buffer;
     uint32_t frame_index;
     uint32_t image_index;
 };

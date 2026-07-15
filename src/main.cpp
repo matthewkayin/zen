@@ -31,7 +31,7 @@ int main() {
         input_poll_events();
         state.updates++;
 
-        renderer_draw_frame();
+        renderer_draw_frame(delta_time);
         state.frames++;
     }
 

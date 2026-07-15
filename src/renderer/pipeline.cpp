@@ -132,10 +132,29 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .pDynamicStates = dynamic_states
     };
 
+    // Descriptor set layout
+    VkDescriptorSetLayoutBinding ubo_layout_binding {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+    };
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = &ubo_layout_binding
+    };
+    VK_CHECK(vkCreateDescriptorSetLayout(
+        context->device.logical_device,
+        &descriptor_set_layout_create_info,
+        context->allocator,
+        &context->graphics_pipeline.descriptor_set_layout));
+
     // Create layout
     VkPipelineLayoutCreateInfo layout_create_info {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 0,
+        .setLayoutCount = 1,
+        .pSetLayouts = &context->graphics_pipeline.descriptor_set_layout,
         .pushConstantRangeCount = 0
     };
     VK_CHECK(vkCreatePipelineLayout(
@@ -185,4 +204,5 @@ bool vulkan_pipeline_create(VulkanContext* context) {
 void vulkan_pipeline_destroy(VulkanContext* context) {
     vkDestroyPipeline(context->device.logical_device, context->graphics_pipeline.handle, context->allocator);
     vkDestroyPipelineLayout(context->device.logical_device, context->graphics_pipeline.layout, context->allocator);
+    vkDestroyDescriptorSetLayout(context->device.logical_device, context->graphics_pipeline.descriptor_set_layout, context->allocator);
 }

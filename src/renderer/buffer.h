@@ -11,13 +11,11 @@ struct VulkanBufferCreateParams {
 struct VulkanBufferMapMemoryParams {
     uint64_t offset;
     uint64_t size;
-    uint32_t flags;
 };
 
 struct VulkanBufferLoadDataParams {
     uint64_t offset;
     uint64_t size;
-    uint32_t flags;
     const void* data;
 };
 

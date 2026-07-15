@@ -51,7 +51,7 @@ void vulkan_buffer_bind(VulkanContext* context, VulkanBuffer* buffer, uint64_t o
 void* vulkan_buffer_map_memory(VulkanContext* context, VulkanBuffer* buffer, VulkanBufferMapMemoryParams params) {
     void* buffer_data;
     VK_CHECK(vkMapMemory(
-        context->device.logical_device, buffer->memory, params.offset, params.size, params.flags, &buffer_data));
+        context->device.logical_device, buffer->memory, params.offset, params.size, 0, &buffer_data));
     return buffer_data;
 }
 
@@ -62,8 +62,7 @@ void vulkan_buffer_unmap_memory(VulkanContext* context, VulkanBuffer* buffer) {
 void vulkan_buffer_load_data(VulkanContext* context, VulkanBuffer* buffer, VulkanBufferLoadDataParams params) {
     void* buffer_data = vulkan_buffer_map_memory(context, buffer, {
         .offset = params.offset,
-        .size = params.size,
-        .flags = params.flags
+        .size = params.size
     });
     memcpy(buffer_data, params.data, params.size);
     vulkan_buffer_unmap_memory(context, buffer);
@@ -125,7 +124,6 @@ void vulkan_buffer_upload_data(VulkanContext* context, VulkanBuffer* buffer, Vul
     vulkan_buffer_load_data(context, &staging_buffer, {
         .offset = 0,
         .size = params.size,
-        .flags = 0,
         .data = params.data
     });
 

@@ -11,6 +11,7 @@
 #include "renderer/image.h"
 #include "renderer/buffer.h"
 #include "math/vertex3d.h"
+#include "math/quat.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
@@ -33,6 +34,8 @@ void renderer_create_debugger();
 // Internal
 void renderer_create_sync_objects();
 void renderer_destroy_sync_objects();
+void renderer_create_uniform_objects();
+void renderer_destroy_uniform_objects();
 void renderer_recreate_swapchain();
 
 bool renderer_init(SDL_Window* window) {
@@ -120,6 +123,7 @@ bool renderer_init(SDL_Window* window) {
         state.context.graphics_command_buffers));
 
     renderer_create_sync_objects();
+    renderer_create_uniform_objects();
 
     // Create vertex buffer
     Vertex vertices[] = {
@@ -163,6 +167,10 @@ bool renderer_init(SDL_Window* window) {
 void renderer_quit() {
     vkDeviceWaitIdle(state.context.device.logical_device);
 
+    vulkan_buffer_destroy(&state.context, &state.vertex_buffer);
+    vulkan_buffer_destroy(&state.context, &state.index_buffer);
+
+    renderer_destroy_uniform_objects();
     renderer_destroy_sync_objects();
     vkFreeCommandBuffers(
         state.context.device.logical_device,
@@ -200,7 +208,7 @@ void renderer_on_resized() {
     renderer_recreate_swapchain();
 }
 
-void renderer_draw_frame() {
+void renderer_draw_frame(double delta) {
     // Wait for current frame fence
     VkResult fence_result = vkWaitForFences(
         state.context.device.logical_device,
@@ -288,6 +296,27 @@ void renderer_draw_frame() {
     };
     vkCmdSetScissor(state.context.graphics_command_buffers[state.context.frame_index], 0, 1, &scissor);
 
+    // End Begin
+
+    static float angle = 0.01f;
+    angle -= 2.0f * delta;
+    quat rotation = quat::from_axis_angle(vec3::forward(), angle, false);
+    VulkanUniformBufferObject ubo {
+        .model = rotation.to_rotation_matrix(vec3(0.0f)),
+        .view = mat4::translation(vec3(0.0f, 0.0f, -2.0f)),
+        .projection = mat4::perspective(
+            45.0f * ZEN_DEG_TO_RAD,
+            (float)state.context.window_width / (float)state.context.window_height,
+            0.1f, 1000.0f)
+    };
+    vulkan_buffer_load_data(&state.context, &state.context.uniform_buffer, {
+        .offset = state.context.frame_index * sizeof(VulkanUniformBufferObject),
+        .size = sizeof(VulkanUniformBufferObject),
+        .data = &ubo
+    });
+
+    // Begin End
+
     VkDeviceSize offsets = 0;
     vkCmdBindVertexBuffers(
         state.context.graphics_command_buffers[state.context.frame_index],
@@ -295,6 +324,10 @@ void renderer_draw_frame() {
     vkCmdBindIndexBuffer(
         state.context.graphics_command_buffers[state.context.frame_index],
         state.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(
+        state.context.graphics_command_buffers[state.context.frame_index],
+        VK_PIPELINE_BIND_POINT_GRAPHICS, state.context.graphics_pipeline.layout,
+        0, 1, &state.context.descriptor_sets[state.context.frame_index], 0, nullptr);
 
     vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], 6, 1, 0, 0, 0);
     vkCmdEndRendering(state.context.graphics_command_buffers[state.context.frame_index]);
@@ -530,6 +563,76 @@ void renderer_destroy_sync_objects() {
             state.context.frame_fences[index],
             state.context.allocator);
     }
+}
+
+void renderer_create_uniform_objects() {
+    // Create uniform buffers
+    vulkan_buffer_create(&state.context, {
+        .size = VULKAN_MAX_FRAMES_IN_FLIGHT * sizeof(VulkanUniformBufferObject),
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    }, &state.context.uniform_buffer);
+    vulkan_buffer_bind(&state.context, &state.context.uniform_buffer, 0);
+
+    // Create descriptor pool
+    VkDescriptorPoolSize descriptor_pool_size {
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = VULKAN_MAX_FRAMES_IN_FLIGHT
+    };
+    VkDescriptorPoolCreateInfo descriptor_pool_create_info {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = 0,
+        .maxSets = VULKAN_MAX_FRAMES_IN_FLIGHT,
+        .poolSizeCount = 1,
+        .pPoolSizes = &descriptor_pool_size
+    };
+    VK_CHECK(vkCreateDescriptorPool(
+        state.context.device.logical_device,
+        &descriptor_pool_create_info,
+        state.context.allocator,
+        &state.context.descriptor_pool));
+
+    // Create descriptor sets
+    VkDescriptorSetLayout layouts[VULKAN_MAX_FRAMES_IN_FLIGHT] = {
+        state.context.graphics_pipeline.descriptor_set_layout,
+        state.context.graphics_pipeline.descriptor_set_layout
+    };
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = state.context.descriptor_pool,
+        .descriptorSetCount = ARRAY_LENGTH(layouts),
+        .pSetLayouts = layouts
+    };
+    VK_CHECK(vkAllocateDescriptorSets(
+        state.context.device.logical_device, &descriptor_set_allocate_info, state.context.descriptor_sets));
+
+    // Write descriptor sets
+    VkDescriptorBufferInfo descriptor_buffer_infos[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VkWriteDescriptorSet descriptor_writes[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    for (uint32_t index = 0; index < VULKAN_MAX_FRAMES_IN_FLIGHT; index++) {
+        descriptor_buffer_infos[index] = {
+            .buffer = state.context.uniform_buffer.handle,
+            .offset = index * sizeof(VulkanUniformBufferObject),
+            .range = sizeof(VulkanUniformBufferObject)
+        };
+        descriptor_writes[index] = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = state.context.descriptor_sets[index],
+            .dstBinding = 0,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pBufferInfo = &descriptor_buffer_infos[index]
+        };
+    }
+    vkUpdateDescriptorSets(
+        state.context.device.logical_device,
+        ARRAY_LENGTH(descriptor_writes), descriptor_writes, 0, nullptr);
+}
+
+void renderer_destroy_uniform_objects() {
+    vkDestroyDescriptorPool(state.context.device.logical_device, state.context.descriptor_pool, state.context.allocator);
+    vulkan_buffer_destroy(&state.context, &state.context.uniform_buffer);
 }
 
 void renderer_recreate_swapchain() {
