@@ -2,6 +2,7 @@
 
 #include "core/logger.h"
 #include "renderer/util.h"
+#include "renderer/command_buffer.h"
 
 bool vulkan_buffer_create(VulkanContext* context, VulkanBufferCreateParams params, VulkanBuffer* out_buffer) {
     // Create the buffer
@@ -69,25 +70,8 @@ void vulkan_buffer_load_data(VulkanContext* context, VulkanBuffer* buffer, Vulka
 }
 
 void vulkan_buffer_copy(VulkanContext* context, VulkanBufferCopyParams params) {
-    VK_CHECK(vkQueueWaitIdle(context->device.graphics_queue));
-
-    // Alloc temp command buffer
-    VkCommandBufferAllocateInfo temp_command_buffer_alloc_info {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = context->device.graphics_command_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1
-    };
     VkCommandBuffer temp_command_buffer;
-    VK_CHECK(vkAllocateCommandBuffers(
-        context->device.logical_device, &temp_command_buffer_alloc_info, &temp_command_buffer));
-
-    // Begin command buffer
-    VkCommandBufferBeginInfo temp_command_buffer_begin_info {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    };
-    VK_CHECK(vkBeginCommandBuffer(temp_command_buffer, &temp_command_buffer_begin_info));
+    vulkan_command_buffer_begin_single_use(context, &temp_command_buffer);
 
     // Send copy command to the buffer
     VkBufferCopy copy_region {
@@ -97,17 +81,7 @@ void vulkan_buffer_copy(VulkanContext* context, VulkanBufferCopyParams params) {
     };
     vkCmdCopyBuffer(temp_command_buffer, params.src_buffer, params.dst_buffer, 1, &copy_region);
 
-    // End command buffer
-    VK_CHECK(vkEndCommandBuffer(temp_command_buffer));
-
-    // Submit command buffer to queue
-    VkSubmitInfo submit_info {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &temp_command_buffer
-    };
-    VK_CHECK(vkQueueSubmit(context->device.graphics_queue, 1, &submit_info, nullptr));
-    VK_CHECK(vkQueueWaitIdle(context->device.graphics_queue));
+    vulkan_command_buffer_end_single_use(context, &temp_command_buffer);
 }
 
 void vulkan_buffer_upload_data(VulkanContext* context, VulkanBuffer* buffer, VulkanBufferUploadDataParams params) {

@@ -46,6 +46,11 @@ struct VulkanBuffer {
     VkDeviceMemory memory;
 };
 
+struct VulkanImage {
+    VkImage handle;
+    VkDeviceMemory memory;
+};
+
 // TODO: move this into the frontend or something?
 struct VulkanUniformBufferObject {
     mat4 model;

@@ -22,6 +22,7 @@ struct RendererState {
     VulkanContext context;
     VulkanBuffer vertex_buffer;
     VulkanBuffer index_buffer;
+    VulkanImage texture;
 };
 static RendererState state;
 
@@ -158,6 +159,11 @@ bool renderer_init(SDL_Window* window) {
         .data = indices
     });
 
+    // Create image
+    if (!vulkan_image_create_texture(&state.context, "../res/texture/texture.png", &state.texture)) {
+        return false;
+    }
+
     state.context.frame_index = 0;
 
     log_info("Renderer initialized successfully.");
@@ -166,6 +172,8 @@ bool renderer_init(SDL_Window* window) {
 
 void renderer_quit() {
     vkDeviceWaitIdle(state.context.device.logical_device);
+
+    vulkan_image_destroy(&state.context, &state.texture);
 
     vulkan_buffer_destroy(&state.context, &state.vertex_buffer);
     vulkan_buffer_destroy(&state.context, &state.index_buffer);
@@ -247,7 +255,7 @@ void renderer_draw_frame(double delta) {
     vkBeginCommandBuffer(state.context.graphics_command_buffers[state.context.frame_index], &command_buffer_begin_info);
 
     // Transition swapchain image to color attachment optimal
-    vulkan_image_transition_layout({
+    vulkan_image_transition_layout_ext({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.images[state.context.image_index],
         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -333,7 +341,7 @@ void renderer_draw_frame(double delta) {
     vkCmdEndRendering(state.context.graphics_command_buffers[state.context.frame_index]);
 
     // Transition the swapchain image to PRESENT
-    vulkan_image_transition_layout({
+    vulkan_image_transition_layout_ext({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.images[state.context.image_index],
         .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,

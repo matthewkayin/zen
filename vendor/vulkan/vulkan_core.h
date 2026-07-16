@@ -7665,7 +7665,7 @@ typedef struct VkDeviceImageMemoryRequirements {
     const void*                 pNext;
     const VkImageCreateInfo*    pCreateInfo;
     VkImageAspectFlagBits       planeAspect;
-} VkDeviceImageMemoryRequirements;
+} kDeviceImageMemoryRequirements;
 
 typedef struct VkPipelineCreationFeedback {
     VkPipelineCreationFeedbackFlags    flags;
