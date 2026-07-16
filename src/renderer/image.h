@@ -32,5 +32,6 @@ struct VulkanImageTransitionLayoutExtParams {
 bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params, VulkanImage* out_image);
 bool vulkan_image_create_texture(VulkanContext* context, const char* path, VulkanImage* out_image);
 void vulkan_image_destroy(VulkanContext* context, VulkanImage* image);
+void vulkan_image_view_create(VulkanContext* context, VkImage image, VkFormat format, VkImageView* out_image_view);
 void vulkan_image_transition_layout(VulkanImageTransitionLayoutParams params);
 void vulkan_image_transition_layout_ext(VulkanImageTransitionLayoutExtParams params);

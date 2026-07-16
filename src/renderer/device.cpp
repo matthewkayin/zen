@@ -3,7 +3,7 @@
 #include "core/logger.h"
 
 static const uint32_t VULKAN_QUEUE_FAMILY_NOT_SUPPORTED = UINT32_MAX;
-static const uint32_t VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS = 0;
+static const uint32_t VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS = UINT32_MAX;
 
 static const char* VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -36,7 +36,9 @@ bool vulkan_device_create(VulkanContext* context) {
     for (uint32_t index = 0; index < physical_device_count; index++) {
         uint32_t device_score = vulkan_device_score_physical_device(physical_devices[index], context->surface);
 
-        if (device_score > selected_device_score) {
+        if (device_score > selected_device_score ||
+            selected_device_score == VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS
+        ) {
             context->device.physical_device = physical_devices[index];
             selected_device_score = device_score;
         }
@@ -180,7 +182,7 @@ uint32_t vulkan_device_score_physical_device(VkPhysicalDevice device, VkSurfaceK
     // Check supported API version
     if (device_properties.apiVersion < VK_API_VERSION_1_4) {
         log_debug("Device does not support the required API version.");
-        return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
+        // return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
     }
 
     // Check queue support

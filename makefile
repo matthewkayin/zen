@@ -66,9 +66,7 @@ else
 	DIRECTORIES := $(shell find src -type d)
 
 	SHADER_SRC_DIR := res/shader
-	SHADER_FILES := \
-    	$(shell find $(SHADER_SRC_DIR) -type f \( -name "*.vert.glsl" \)) \
-    	$(shell find $(SHADER_SRC_DIR) -type f \( -name "*.frag.glsl" \))
+	SHADER_FILES := $(shell find $(SHADER_SRC_DIR) -type f \( -name "*.slang" \))
 	SHADER_DIRECTORIES := $(shell find $(SHADER_SRC_DIR) -type d)
 
 	ifeq ($(UNAME_S),Darwin)

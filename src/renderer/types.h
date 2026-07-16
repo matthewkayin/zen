@@ -49,6 +49,7 @@ struct VulkanBuffer {
 struct VulkanImage {
     VkImage handle;
     VkDeviceMemory memory;
+    VkImageView view;
 };
 
 // TODO: move this into the frontend or something?

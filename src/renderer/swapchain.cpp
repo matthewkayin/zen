@@ -1,5 +1,6 @@
 #include "swapchain.h"
 
+#include "renderer/image.h"
 #include <algorithm>
 
 static const uint32_t VULKAN_SURFACE_SIZE_DETERMINED_BY_SWAPCHAIN_EXTENT = UINT32_MAX;
@@ -96,23 +97,11 @@ void vulkan_swapchain_create(VulkanContext* context) {
     // Create image views
     context->swapchain.image_views = std::vector<VkImageView>(image_count);
     for (uint32_t image_index = 0; image_index < image_count; image_index++) {
-        VkImageViewCreateInfo view_create_info {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = context->swapchain.images[image_index],
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = context->swapchain.image_format.format,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1
-            }
-        };
-
-        VK_CHECK(vkCreateImageView(
-            context->device.logical_device, &view_create_info, context->allocator,
-            &context->swapchain.image_views[image_index]));
+        vulkan_image_view_create(
+            context,
+            context->swapchain.images[image_index],
+            context->swapchain.image_format.format,
+            &context->swapchain.image_views[image_index]);
     }
 }
 

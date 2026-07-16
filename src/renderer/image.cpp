@@ -4,6 +4,7 @@
 #include "renderer/buffer.h"
 #include "renderer/command_buffer.h"
 #include "renderer/util.h"
+#include "vulkan/vulkan_core.h"
 #include <SDL3/SDL.h>
 
 bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params, VulkanImage* out_image) {
@@ -56,6 +57,13 @@ bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params,
 
     // Bind image memory
     VK_CHECK(vkBindImageMemory(context->device.logical_device, out_image->handle, out_image->memory, 0));
+
+    // Create image view
+    vulkan_image_view_create(
+        context,
+        out_image->handle,
+        VK_FORMAT_R8G8B8A8_SRGB,
+        &out_image->view);
 
     return true;
 }
@@ -153,14 +161,38 @@ bool vulkan_image_create_texture(VulkanContext* context, const char* path, Vulka
     });
 
     vulkan_command_buffer_end_single_use(context, &temp_command_buffer);
+    vulkan_buffer_destroy(context, &staging_buffer);
     SDL_DestroySurface(image_surface);
 
     return true;
 }
 
 void vulkan_image_destroy(VulkanContext* context, VulkanImage* image) {
+    vkDestroyImageView(context->device.logical_device, image->view, context->allocator);
     vkFreeMemory(context->device.logical_device, image->memory, context->allocator);
     vkDestroyImage(context->device.logical_device, image->handle, context->allocator);
+}
+
+void vulkan_image_view_create(VulkanContext* context, VkImage image, VkFormat format, VkImageView* out_image_view) {
+    VkImageViewCreateInfo view_create_info {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+    VK_CHECK(vkCreateImageView(
+        context->device.logical_device, &view_create_info, context->allocator, out_image_view));
+}
+
+void vulkan_image_view_destroy(VulkanContext* context, VkImageView view) {
+    vkDestroyImageView(context->device.logical_device, view, context->allocator);
 }
 
 void vulkan_image_transition_layout(VulkanImageTransitionLayoutParams params) {
