@@ -23,6 +23,7 @@ struct RendererState {
     VulkanBuffer vertex_buffer;
     VulkanBuffer index_buffer;
     VulkanImage texture;
+    VkSampler texutre_sampler;
 };
 static RendererState state;
 
@@ -37,6 +38,8 @@ void renderer_create_sync_objects();
 void renderer_destroy_sync_objects();
 void renderer_create_uniform_objects();
 void renderer_destroy_uniform_objects();
+void renderer_create_texture_sampler();
+void renderer_destroy_texture_sampler();
 void renderer_recreate_swapchain();
 
 bool renderer_init(SDL_Window* window) {
@@ -124,14 +127,20 @@ bool renderer_init(SDL_Window* window) {
         state.context.graphics_command_buffers));
 
     renderer_create_sync_objects();
+
+    // Create texture
+    if (!vulkan_image_create_texture(&state.context, "../res/texture/texture.png", &state.texture)) {
+        return false;
+    }
+    renderer_create_texture_sampler();
     renderer_create_uniform_objects();
 
     // Create vertex buffer
-    Vertex vertices[] = {
-        { .position = vec2(-0.5f, -0.5f), .color = vec3(1.0f, 1.0f, 1.0f) },
-        { .position = vec2(0.5f, -0.5f), .color = vec3(0.0f, 0.0f, 1.0f) },
-        { .position = vec2(0.5f, 0.5f), .color = vec3(0.0f, 1.0f, 0.0f) },
-        { .position = vec2(-0.5f, 0.5f), .color = vec3(1.0f, 0.0f, 0.0f) },
+    Vertex3d vertices[] = {
+        { .position = vec3(-0.5f, -0.5f, 0.0f), .tex_coord = vec2(0.0f, 0.0f) },
+        { .position = vec3(0.5f, -0.5f, 0.0f), .tex_coord = vec2(1.0f, 0.0f) },
+        { .position = vec3(0.5f, 0.5f, 0.0f), .tex_coord = vec2(1.0f, 1.0f) },
+        { .position = vec3(-0.5f, 0.5f, 0.0f), .tex_coord = vec2(0.0f, 1.0f) },
     };
     vulkan_buffer_create(&state.context, {
         .size = sizeof(vertices),
@@ -159,11 +168,6 @@ bool renderer_init(SDL_Window* window) {
         .data = indices
     });
 
-    // Create image
-    if (!vulkan_image_create_texture(&state.context, "../res/texture/texture.png", &state.texture)) {
-        return false;
-    }
-
     state.context.frame_index = 0;
 
     log_info("Renderer initialized successfully.");
@@ -173,6 +177,7 @@ bool renderer_init(SDL_Window* window) {
 void renderer_quit() {
     vkDeviceWaitIdle(state.context.device.logical_device);
 
+    renderer_destroy_texture_sampler();
     vulkan_image_destroy(&state.context, &state.texture);
 
     vulkan_buffer_destroy(&state.context, &state.vertex_buffer);
@@ -306,11 +311,8 @@ void renderer_draw_frame(double delta) {
 
     // End Begin
 
-    static float angle = 0.01f;
-    angle -= 2.0f * delta;
-    quat rotation = quat::from_axis_angle(vec3::forward(), angle, false);
     VulkanUniformBufferObject ubo {
-        .model = rotation.to_rotation_matrix(vec3(0.0f)),
+        .model = mat4::identity(),
         .view = mat4::translation(vec3(0.0f, 0.0f, -2.0f)),
         .projection = mat4::perspective(
             45.0f * ZEN_DEG_TO_RAD,
@@ -583,16 +585,22 @@ void renderer_create_uniform_objects() {
     vulkan_buffer_bind(&state.context, &state.context.uniform_buffer, 0);
 
     // Create descriptor pool
-    VkDescriptorPoolSize descriptor_pool_size {
-        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = VULKAN_MAX_FRAMES_IN_FLIGHT
+    VkDescriptorPoolSize descriptor_pool_sizes[] = {
+        {
+            .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = VULKAN_MAX_FRAMES_IN_FLIGHT
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = VULKAN_MAX_FRAMES_IN_FLIGHT
+        },
     };
     VkDescriptorPoolCreateInfo descriptor_pool_create_info {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = 0,
         .maxSets = VULKAN_MAX_FRAMES_IN_FLIGHT,
-        .poolSizeCount = 1,
-        .pPoolSizes = &descriptor_pool_size
+        .poolSizeCount = ARRAY_LENGTH(descriptor_pool_sizes),
+        .pPoolSizes = descriptor_pool_sizes
     };
     VK_CHECK(vkCreateDescriptorPool(
         state.context.device.logical_device,
@@ -616,7 +624,8 @@ void renderer_create_uniform_objects() {
 
     // Write descriptor sets
     VkDescriptorBufferInfo descriptor_buffer_infos[VULKAN_MAX_FRAMES_IN_FLIGHT];
-    VkWriteDescriptorSet descriptor_writes[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VkDescriptorImageInfo descriptor_image_infos[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VkWriteDescriptorSet descriptor_writes[VULKAN_MAX_FRAMES_IN_FLIGHT * 2];
     for (uint32_t index = 0; index < VULKAN_MAX_FRAMES_IN_FLIGHT; index++) {
         descriptor_buffer_infos[index] = {
             .buffer = state.context.uniform_buffer.handle,
@@ -632,6 +641,21 @@ void renderer_create_uniform_objects() {
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .pBufferInfo = &descriptor_buffer_infos[index]
         };
+
+        descriptor_image_infos[index] = {
+            .sampler = state.texutre_sampler,
+            .imageView = state.texture.view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
+        descriptor_writes[VULKAN_MAX_FRAMES_IN_FLIGHT + index] = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = state.context.descriptor_sets[index],
+            .dstBinding = 1,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .pImageInfo = &descriptor_image_infos[index]
+        };
     }
     vkUpdateDescriptorSets(
         state.context.device.logical_device,
@@ -641,6 +665,38 @@ void renderer_create_uniform_objects() {
 void renderer_destroy_uniform_objects() {
     vkDestroyDescriptorPool(state.context.device.logical_device, state.context.descriptor_pool, state.context.allocator);
     vulkan_buffer_destroy(&state.context, &state.context.uniform_buffer);
+}
+
+void renderer_create_texture_sampler() {
+    // Create texture sample
+    VkSamplerCreateInfo sampler_create_info {
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = VK_FILTER_LINEAR,
+        .minFilter = VK_FILTER_LINEAR,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_TRUE,
+        .maxAnisotropy = state.context.device.properties.limits.maxSamplerAnisotropy,
+        .compareEnable = VK_FALSE,
+        .compareOp = VK_COMPARE_OP_ALWAYS,
+        .minLod = 0.0f,
+        .maxLod = 0.0f,
+        .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+        .unnormalizedCoordinates = VK_FALSE,
+    };
+    VK_CHECK(vkCreateSampler(
+        state.context.device.logical_device,
+        &sampler_create_info,
+        state.context.allocator,
+        &state.texutre_sampler));
+}
+
+void renderer_destroy_texture_sampler() {
+    vkDestroySampler(
+        state.context.device.logical_device, state.texutre_sampler, state.context.allocator);
 }
 
 void renderer_recreate_swapchain() {

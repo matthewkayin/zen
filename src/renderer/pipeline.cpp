@@ -41,21 +41,21 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     // Vertex input
     VkVertexInputBindingDescription vertex_binding_description {
         .binding = 0,
-        .stride = sizeof(Vertex),
+        .stride = sizeof(Vertex3d),
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
     VkVertexInputAttributeDescription vertex_attribute_descriptions[] = {
         {
             .location = 0,
             .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = offsetof(Vertex, position)
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = offsetof(Vertex3d, position)
         },
         {
             .location = 1,
             .binding = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(Vertex, color)
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(Vertex3d, tex_coord)
         }
     };
     VkPipelineVertexInputStateCreateInfo vertex_input_state {
@@ -133,16 +133,24 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     };
 
     // Descriptor set layout
-    VkDescriptorSetLayoutBinding ubo_layout_binding {
-        .binding = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+    VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[] {
+        {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+        },
+        {
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT
+        }
     };
     VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &ubo_layout_binding
+        .bindingCount = ARRAY_LENGTH(descriptor_set_layout_bindings),
+        .pBindings = descriptor_set_layout_bindings
     };
     VK_CHECK(vkCreateDescriptorSetLayout(
         context->device.logical_device,

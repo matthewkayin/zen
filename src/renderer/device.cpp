@@ -48,6 +48,9 @@ bool vulkan_device_create(VulkanContext* context) {
         return false;
     }
 
+    // Query physical device properties
+    vkGetPhysicalDeviceProperties(context->device.physical_device, &context->device.properties);
+
     log_debug("Creating logical device...");
 
     // Get queue indices
@@ -181,7 +184,7 @@ uint32_t vulkan_device_score_physical_device(VkPhysicalDevice device, VkSurfaceK
 
     // Check supported API version
     if (device_properties.apiVersion < VK_API_VERSION_1_4) {
-        log_debug("Device does not support the required API version.");
+        log_warn("Device does not support the required API version.");
         // return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
     }
 

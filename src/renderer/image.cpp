@@ -62,7 +62,7 @@ bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params,
     vulkan_image_view_create(
         context,
         out_image->handle,
-        VK_FORMAT_R8G8B8A8_SRGB,
+        params.format,
         &out_image->view);
 
     return true;
@@ -75,16 +75,16 @@ bool vulkan_image_create_texture(VulkanContext* context, const char* path, Vulka
         log_error("Failed to load image at path %s.", path);
         return false;
     }
-    if (image_surface->format != SDL_PIXELFORMAT_RGBA8888) {
+    if (image_surface->format != SDL_PIXELFORMAT_ABGR8888) {
         SDL_Surface* old_surface = image_surface;
-        image_surface = SDL_ConvertSurface(old_surface, SDL_PIXELFORMAT_RGBA8888);
+        image_surface = SDL_ConvertSurface(old_surface, SDL_PIXELFORMAT_ABGR8888);
         SDL_DestroySurface(old_surface);
     }
     if (!image_surface) {
         log_error("Failed to convert image %s. %s", path, SDL_GetError());
         return false;
     }
-    const size_t image_size = image_surface->w * image_surface->h * 4U;
+    const size_t image_size = image_surface->pitch * image_surface->h;
 
     // Copy image data to staging buffer
     VulkanBuffer staging_buffer;
@@ -105,7 +105,7 @@ bool vulkan_image_create_texture(VulkanContext* context, const char* path, Vulka
     bool image_create_succeeded = vulkan_image_create(context, {
         .width = (uint32_t)image_surface->w,
         .height = (uint32_t)image_surface->h,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT

@@ -5,9 +5,5 @@
 
 struct Vertex3d {
     vec3 position;
-};
-
-struct Vertex {
-    vec2 position;
-    vec3 color;
+    vec2 tex_coord;
 };

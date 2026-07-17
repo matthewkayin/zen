@@ -16,6 +16,8 @@ struct VulkanDevice {
     VkPhysicalDevice physical_device;
     VkDevice logical_device;
 
+    VkPhysicalDeviceProperties properties;
+
     uint32_t graphics_queue_index;
     uint32_t present_queue_index;
     uint32_t compute_queue_index;
