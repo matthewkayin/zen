@@ -9,12 +9,7 @@ struct quat {
     float z;
     float w;
 
-    quat() {
-        x = 0.0f;
-        y = 0.0f;
-        z = 0.0f;
-        w = 0.0f;
-    }
+    quat() = default;
 
     quat(float p_x, float p_y, float p_z, float p_w) {
         x = p_x;

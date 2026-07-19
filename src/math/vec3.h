@@ -8,11 +8,7 @@ struct vec3 {
     float y;
     float z;
 
-    vec3() {
-        x = 0.0f;
-        y = 0.0f;
-        z = 0.0f;
-    }
+    vec3() = default;
     vec3(float v) {
         x = v;
         y = v;

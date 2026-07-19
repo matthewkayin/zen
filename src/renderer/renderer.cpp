@@ -232,7 +232,7 @@ void renderer_on_resized() {
     renderer_recreate_swapchain();
 }
 
-void renderer_draw_frame(double delta) {
+void renderer_begin_frame() {
     // Wait for current frame fence
     VkResult fence_result = vkWaitForFences(
         state.context.device.logical_device,
@@ -350,38 +350,9 @@ void renderer_draw_frame(double delta) {
         .extent = state.context.swapchain.extent
     };
     vkCmdSetScissor(state.context.graphics_command_buffers[state.context.frame_index], 0, 1, &scissor);
+}
 
-    // End Begin
-
-    VulkanUniformBufferObject ubo {
-        .model = mat4::identity(),
-        .view = mat4::look_at(vec3(2.0f, 2.0f, 2.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f)),
-        .projection = mat4::perspective(
-            45.0f * ZEN_DEG_TO_RAD,
-            (float)state.context.window_width / (float)state.context.window_height,
-            0.1f, 1000.0f)
-    };
-    vulkan_buffer_load_data(&state.context, &state.context.uniform_buffer, {
-        .offset = state.context.frame_index * sizeof(VulkanUniformBufferObject),
-        .size = sizeof(VulkanUniformBufferObject),
-        .data = &ubo
-    });
-
-    // Begin End
-
-    VkDeviceSize offsets = 0;
-    vkCmdBindVertexBuffers(
-        state.context.graphics_command_buffers[state.context.frame_index],
-        0, 1, &state.vertex_buffer.handle, &offsets);
-    vkCmdBindIndexBuffer(
-        state.context.graphics_command_buffers[state.context.frame_index],
-        state.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdBindDescriptorSets(
-        state.context.graphics_command_buffers[state.context.frame_index],
-        VK_PIPELINE_BIND_POINT_GRAPHICS, state.context.graphics_pipeline.layout,
-        0, 1, &state.context.descriptor_sets[state.context.frame_index], 0, nullptr);
-
-    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], ARRAY_LENGTH(indices), 1, 0, 0, 0);
+void renderer_end_frame() {
     vkCmdEndRendering(state.context.graphics_command_buffers[state.context.frame_index]);
 
     // Transition the swapchain image to PRESENT
@@ -438,6 +409,41 @@ void renderer_draw_frame(double delta) {
 
     state.context.frame_index = (state.context.frame_index + 1) % VULKAN_MAX_FRAMES_IN_FLIGHT;
 }
+
+void renderer_draw_frame(double delta) {
+    renderer_begin_frame();
+
+    VulkanUniformBufferObject ubo {
+        .model = mat4::identity(),
+        .view = mat4::look_at(vec3(2.0f, 2.0f, 2.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f)),
+        .projection = mat4::perspective(
+            45.0f * ZEN_DEG_TO_RAD,
+            (float)state.context.window_width / (float)state.context.window_height,
+            0.1f, 1000.0f)
+    };
+    vulkan_buffer_load_data(&state.context, &state.context.uniform_buffer, {
+        .offset = state.context.frame_index * sizeof(VulkanUniformBufferObject),
+        .size = sizeof(VulkanUniformBufferObject),
+        .data = &ubo
+    });
+
+    VkDeviceSize offsets = 0;
+    vkCmdBindVertexBuffers(
+        state.context.graphics_command_buffers[state.context.frame_index],
+        0, 1, &state.vertex_buffer.handle, &offsets);
+    vkCmdBindIndexBuffer(
+        state.context.graphics_command_buffers[state.context.frame_index],
+        state.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindDescriptorSets(
+        state.context.graphics_command_buffers[state.context.frame_index],
+        VK_PIPELINE_BIND_POINT_GRAPHICS, state.context.graphics_pipeline.layout,
+        0, 1, &state.context.descriptor_sets[state.context.frame_index], 0, nullptr);
+
+    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], ARRAY_LENGTH(indices), 1, 0, 0, 0);
+
+    renderer_end_frame();
+}
+
 
 // DEBUG
 

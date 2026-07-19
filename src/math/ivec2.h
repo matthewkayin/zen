@@ -3,17 +3,11 @@
 #include "math/vec2.h"
 
 struct ivec2 {
-    int x;
-    int y;
+    int x = 0;
+    int y = 0;
 
-    ivec2() {
-        x = 0.0f;
-        y = 0.0f;
-    }
-    ivec2(int v) {
-        x = v;
-        y = v;
-    }
+    ivec2() = default;
+
     ivec2(int p_x, int p_y) {
         x = p_x;
         y = p_y;
