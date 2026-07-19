@@ -8,7 +8,14 @@ struct VulkanImageCreateParams {
     VkFormat format;
     VkImageTiling tiling;
     VkImageUsageFlags usage;
+    VkImageAspectFlags aspect;
     VkMemoryPropertyFlags memory_properties;
+};
+
+struct VulkanImageViewCreateParams {
+    VkImage image;
+    VkFormat format;
+    VkImageAspectFlags aspect;
 };
 
 struct VulkanImageTransitionLayoutParams {
@@ -21,6 +28,7 @@ struct VulkanImageTransitionLayoutParams {
 struct VulkanImageTransitionLayoutExtParams {
     VkCommandBuffer command_buffer;
     VkImage image;
+    VkImageAspectFlags image_aspect;
     VkImageLayout old_layout;
     VkImageLayout new_layout;
     VkAccessFlags2 src_access_mask;
@@ -32,6 +40,6 @@ struct VulkanImageTransitionLayoutExtParams {
 bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params, VulkanImage* out_image);
 bool vulkan_image_create_texture(VulkanContext* context, const char* path, VulkanImage* out_image);
 void vulkan_image_destroy(VulkanContext* context, VulkanImage* image);
-void vulkan_image_view_create(VulkanContext* context, VkImage image, VkFormat format, VkImageView* out_image_view);
+void vulkan_image_view_create(VulkanContext* context, VulkanImageViewCreateParams params, VkImageView* out_image_view);
 void vulkan_image_transition_layout(VulkanImageTransitionLayoutParams params);
 void vulkan_image_transition_layout_ext(VulkanImageTransitionLayoutExtParams params);

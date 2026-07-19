@@ -145,6 +145,31 @@ void vulkan_device_destroy(VulkanContext* context) {
     vkDestroyDevice(context->device.logical_device, context->allocator);
 }
 
+bool vulkan_device_get_supported_depth_format(VulkanDevice* device, VkImageTiling tiling, VkFormatFeatureFlags features) {
+    VkFormat candidates[] = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT
+    };
+
+    for (uint32_t index = 0; index < ARRAY_LENGTH(candidates); index++) {
+        VkFormatProperties properties;
+        vkGetPhysicalDeviceFormatProperties(device->physical_device, candidates[index], &properties);
+
+        const bool device_supports_format =
+            (tiling == VK_IMAGE_TILING_LINEAR && ((properties.linearTilingFeatures & features) == features)) ||
+            (tiling == VK_IMAGE_TILING_OPTIMAL && ((properties.optimalTilingFeatures & features) == features));
+        if (device_supports_format) {
+            device->depth_format = candidates[index];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// INTERNAL
+
 void vulkan_device_get_queue_indices(
     VkPhysicalDevice device,
     VkSurfaceKHR surface,

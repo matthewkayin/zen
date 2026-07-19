@@ -17,6 +17,7 @@ struct VulkanDevice {
     VkDevice logical_device;
 
     VkPhysicalDeviceProperties properties;
+    VkFormat depth_format;
 
     uint32_t graphics_queue_index;
     uint32_t present_queue_index;
@@ -29,10 +30,17 @@ struct VulkanDevice {
     VkCommandPool graphics_command_pool;
 };
 
+struct VulkanImage {
+    VkImage handle;
+    VkDeviceMemory memory;
+    VkImageView view;
+};
+
 struct VulkanSwapchain {
     VkSwapchainKHR handle;
     VkSurfaceFormatKHR image_format;
     VkExtent2D extent;
+    VulkanImage depth_attachment;
     std::vector<VkImage> images;
     std::vector<VkImageView> image_views;
 };
@@ -46,12 +54,6 @@ struct VulkanPipeline {
 struct VulkanBuffer {
     VkBuffer handle;
     VkDeviceMemory memory;
-};
-
-struct VulkanImage {
-    VkImage handle;
-    VkDeviceMemory memory;
-    VkImageView view;
 };
 
 // TODO: move this into the frontend or something?

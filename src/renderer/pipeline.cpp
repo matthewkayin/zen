@@ -106,6 +106,16 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .alphaToOneEnable = VK_FALSE
     };
 
+    // Depth stencil state
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE
+    };
+
     // Color blend state
     VkPipelineColorBlendAttachmentState color_blend_attachment {
         .blendEnable = VK_FALSE,
@@ -174,7 +184,8 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     VkPipelineRenderingCreateInfo pipeline_rendering_create_info {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &context->swapchain.image_format.format
+        .pColorAttachmentFormats = &context->swapchain.image_format.format,
+        .depthAttachmentFormat = context->device.depth_format
     };
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -186,6 +197,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .pViewportState = &viewport_state,
         .pRasterizationState = &rasterization_state,
         .pMultisampleState = &multisample_state,
+        .pDepthStencilState = &depth_stencil_state,
         .pColorBlendState = &color_blend_state,
         .pDynamicState = &dynamic_state,
         .layout = context->graphics_pipeline.layout,

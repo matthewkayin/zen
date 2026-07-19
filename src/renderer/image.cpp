@@ -59,11 +59,11 @@ bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params,
     VK_CHECK(vkBindImageMemory(context->device.logical_device, out_image->handle, out_image->memory, 0));
 
     // Create image view
-    vulkan_image_view_create(
-        context,
-        out_image->handle,
-        params.format,
-        &out_image->view);
+    vulkan_image_view_create(context, {
+        .image = out_image->handle,
+        .format = params.format,
+        .aspect = params.aspect
+    }, &out_image->view);
 
     return true;
 }
@@ -108,6 +108,7 @@ bool vulkan_image_create_texture(VulkanContext* context, const char* path, Vulka
         .format = VK_FORMAT_R8G8B8A8_UNORM,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        .aspect = VK_IMAGE_ASPECT_COLOR_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     }, out_image);
     if (!image_create_succeeded) {
@@ -173,14 +174,14 @@ void vulkan_image_destroy(VulkanContext* context, VulkanImage* image) {
     vkDestroyImage(context->device.logical_device, image->handle, context->allocator);
 }
 
-void vulkan_image_view_create(VulkanContext* context, VkImage image, VkFormat format, VkImageView* out_image_view) {
+void vulkan_image_view_create(VulkanContext* context, VulkanImageViewCreateParams params, VkImageView* out_image_view) {
     VkImageViewCreateInfo view_create_info {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image,
+        .image = params.image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = format,
+        .format = params.format,
         .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .aspectMask = params.aspect,
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
@@ -223,6 +224,7 @@ void vulkan_image_transition_layout(VulkanImageTransitionLayoutParams params) {
     vulkan_image_transition_layout_ext({
         .command_buffer = params.command_buffer,
         .image = params.image,
+        .image_aspect = VK_IMAGE_ASPECT_COLOR_BIT,
         .old_layout = params.old_layout,
         .new_layout = params.new_layout,
         .src_access_mask = src_access_mask,
@@ -245,7 +247,7 @@ void vulkan_image_transition_layout_ext(VulkanImageTransitionLayoutExtParams par
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = params.image,
         .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .aspectMask = params.image_aspect,
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,

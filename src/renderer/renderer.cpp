@@ -11,11 +11,29 @@
 #include "renderer/image.h"
 #include "renderer/buffer.h"
 #include "math/vertex3d.h"
-#include "math/quat.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 #include <vector>
+
+static const Vertex3d vertices[] = {
+    { .position = vec3(-0.5f, -0.5f, 0.0f), .tex_coord = vec2(1.0f, 0.0f) },
+    { .position = vec3(0.5f, -0.5f, 0.0f), .tex_coord = vec2(0.0f, 0.0f) },
+    { .position = vec3(0.5f, 0.5f, 0.0f), .tex_coord = vec2(0.0f, 1.0f) },
+    { .position = vec3(-0.5f, 0.5f, 0.0f), .tex_coord = vec2(1.0f, 1.0f) },
+
+    { .position = vec3(-0.5f, -0.5f, -0.5f), .tex_coord = vec2(1.0f, 0.0f) },
+    { .position = vec3(0.5f, -0.5f, -0.5f), .tex_coord = vec2(0.0f, 0.0f) },
+    { .position = vec3(0.5f, 0.5f, -0.5f), .tex_coord = vec2(0.0f, 1.0f) },
+    { .position = vec3(-0.5f, 0.5f, -0.5f), .tex_coord = vec2(1.0f, 1.0f) },
+};
+static const uint32_t indices[] = {
+    0, 1, 2,
+    2, 3, 0,
+
+    4, 5, 6,
+    6, 7, 4
+};
 
 struct RendererState {
     SDL_Window* window;
@@ -136,12 +154,6 @@ bool renderer_init(SDL_Window* window) {
     renderer_create_uniform_objects();
 
     // Create vertex buffer
-    Vertex3d vertices[] = {
-        { .position = vec3(-0.5f, -0.5f, 0.0f), .tex_coord = vec2(0.0f, 0.0f) },
-        { .position = vec3(0.5f, -0.5f, 0.0f), .tex_coord = vec2(1.0f, 0.0f) },
-        { .position = vec3(0.5f, 0.5f, 0.0f), .tex_coord = vec2(1.0f, 1.0f) },
-        { .position = vec3(-0.5f, 0.5f, 0.0f), .tex_coord = vec2(0.0f, 1.0f) },
-    };
     vulkan_buffer_create(&state.context, {
         .size = sizeof(vertices),
         .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -151,11 +163,10 @@ bool renderer_init(SDL_Window* window) {
     vulkan_buffer_upload_data(&state.context, &state.vertex_buffer, {
         .offset = 0,
         .size = sizeof(vertices),
-        .data = vertices
+        .data = (void*)vertices
     });
 
     // Create index buffer
-    uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
     vulkan_buffer_create(&state.context, {
         .size = sizeof(indices),
         .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -165,7 +176,7 @@ bool renderer_init(SDL_Window* window) {
     vulkan_buffer_upload_data(&state.context, &state.index_buffer, {
         .offset = 0,
         .size = sizeof(indices),
-        .data = indices
+        .data = (void*)indices
     });
 
     state.context.frame_index = 0;
@@ -263,6 +274,7 @@ void renderer_draw_frame(double delta) {
     vulkan_image_transition_layout_ext({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.images[state.context.image_index],
+        .image_aspect = VK_IMAGE_ASPECT_COLOR_BIT,
         .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
         .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .src_access_mask = VK_ACCESS_2_NONE,
@@ -271,14 +283,43 @@ void renderer_draw_frame(double delta) {
         .dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
     });
 
+    // Transition depth attachment to depth attachment optimal
+    vulkan_image_transition_layout_ext({
+        .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
+        .image = state.context.swapchain.depth_attachment.handle,
+        .image_aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
+        .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .new_layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .src_access_mask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .dst_access_mask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+        .src_stage_mask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+        .dst_stage_mask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+    });
+
     VkRenderingAttachmentInfo rendering_attachment_info {
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView = state.context.swapchain.image_views[state.context.image_index],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue = { .color = { .float32 = { 0.0f, 0.0f, 0.0f, 1.0f }} }
+        .clearValue = {
+            .color = { .float32 = { 0.0f, 0.0f, 0.0f, 1.0f }}
+        }
     };
+    VkRenderingAttachmentInfo depth_attachment_info {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageView = state.context.swapchain.depth_attachment.view,
+        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .clearValue = {
+            .depthStencil = {
+                .depth = 1.0f,
+                .stencil = 0
+            }
+        }
+    };
+
     VkRenderingInfo rendering_info {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .renderArea = {
@@ -287,7 +328,8 @@ void renderer_draw_frame(double delta) {
         },
         .layerCount = 1,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &rendering_attachment_info
+        .pColorAttachments = &rendering_attachment_info,
+        .pDepthAttachment = &depth_attachment_info
     };
     vkCmdBeginRendering(state.context.graphics_command_buffers[state.context.frame_index], &rendering_info);
     vkCmdBindPipeline(state.context.graphics_command_buffers[state.context.frame_index],
@@ -313,7 +355,7 @@ void renderer_draw_frame(double delta) {
 
     VulkanUniformBufferObject ubo {
         .model = mat4::identity(),
-        .view = mat4::translation(vec3(0.0f, 0.0f, -2.0f)),
+        .view = mat4::look_at(vec3(2.0f, 2.0f, 2.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f)),
         .projection = mat4::perspective(
             45.0f * ZEN_DEG_TO_RAD,
             (float)state.context.window_width / (float)state.context.window_height,
@@ -339,13 +381,14 @@ void renderer_draw_frame(double delta) {
         VK_PIPELINE_BIND_POINT_GRAPHICS, state.context.graphics_pipeline.layout,
         0, 1, &state.context.descriptor_sets[state.context.frame_index], 0, nullptr);
 
-    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], ARRAY_LENGTH(indices), 1, 0, 0, 0);
     vkCmdEndRendering(state.context.graphics_command_buffers[state.context.frame_index]);
 
     // Transition the swapchain image to PRESENT
     vulkan_image_transition_layout_ext({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.images[state.context.image_index],
+        .image_aspect = VK_IMAGE_ASPECT_COLOR_BIT,
         .old_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .new_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .src_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,

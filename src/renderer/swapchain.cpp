@@ -1,6 +1,8 @@
 #include "swapchain.h"
 
+#include "core/logger.h"
 #include "renderer/image.h"
+#include "renderer/device.h"
 #include <algorithm>
 
 static const uint32_t VULKAN_SURFACE_SIZE_DETERMINED_BY_SWAPCHAIN_EXTENT = UINT32_MAX;
@@ -97,16 +99,32 @@ void vulkan_swapchain_create(VulkanContext* context) {
     // Create image views
     context->swapchain.image_views = std::vector<VkImageView>(image_count);
     for (uint32_t image_index = 0; image_index < image_count; image_index++) {
-        vulkan_image_view_create(
-            context,
-            context->swapchain.images[image_index],
-            context->swapchain.image_format.format,
-            &context->swapchain.image_views[image_index]);
+        vulkan_image_view_create(context, {
+            .image = context->swapchain.images[image_index],
+            .format = context->swapchain.image_format.format,
+            .aspect = VK_IMAGE_ASPECT_COLOR_BIT
+        }, &context->swapchain.image_views[image_index]);
     }
+
+    // Create depth attachment
+    ZEN_ASSERT(vulkan_device_get_supported_depth_format(&context->device, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT));
+    vulkan_image_create(context, {
+        .width = context->swapchain.extent.width,
+        .height = context->swapchain.extent.height,
+        .format = context->device.depth_format,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    }, &context->swapchain.depth_attachment);
+
+    log_info("Swapchain created successfully.");
 }
 
 void vulkan_swapchain_destroy(VulkanContext* context) {
     vkDeviceWaitIdle(context->device.logical_device);
+
+    vulkan_image_destroy(context, &context->swapchain.depth_attachment);
 
     // Destroy views
     for (VkImageView view : context->swapchain.image_views) {
