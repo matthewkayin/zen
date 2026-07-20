@@ -117,7 +117,6 @@ struct quat {
     }
 
     quat slerp(const quat& dest, float percent) {
-        quat result;
         quat from = normalized();
         quat to = dest.normalized();
         float _dot = quat::dot(from, to);

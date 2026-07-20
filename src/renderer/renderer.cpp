@@ -10,38 +10,23 @@
 #include "renderer/pipeline.h"
 #include "renderer/image.h"
 #include "renderer/buffer.h"
-#include "math/vertex3d.h"
+#include "util/obj.h"
+#include "math/quat.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan.h>
 #include <vector>
-
-static const Vertex3d vertices[] = {
-    { .position = vec3(-0.5f, -0.5f, 0.0f), .tex_coord = vec2(1.0f, 0.0f) },
-    { .position = vec3(0.5f, -0.5f, 0.0f), .tex_coord = vec2(0.0f, 0.0f) },
-    { .position = vec3(0.5f, 0.5f, 0.0f), .tex_coord = vec2(0.0f, 1.0f) },
-    { .position = vec3(-0.5f, 0.5f, 0.0f), .tex_coord = vec2(1.0f, 1.0f) },
-
-    { .position = vec3(-0.5f, -0.5f, -0.5f), .tex_coord = vec2(1.0f, 0.0f) },
-    { .position = vec3(0.5f, -0.5f, -0.5f), .tex_coord = vec2(0.0f, 0.0f) },
-    { .position = vec3(0.5f, 0.5f, -0.5f), .tex_coord = vec2(0.0f, 1.0f) },
-    { .position = vec3(-0.5f, 0.5f, -0.5f), .tex_coord = vec2(1.0f, 1.0f) },
-};
-static const uint32_t indices[] = {
-    0, 1, 2,
-    2, 3, 0,
-
-    4, 5, 6,
-    6, 7, 4
-};
 
 struct RendererState {
     SDL_Window* window;
     VulkanContext context;
     VulkanBuffer vertex_buffer;
     VulkanBuffer index_buffer;
-    VulkanImage texture;
-    VkSampler texutre_sampler;
+    VkSampler texture_sampler;
+
+    VulkanImage viking_texture;
+    std::vector<Vertex3d> viking_vertices;
+    std::vector<uint32_t> viking_indices;
 };
 static RendererState state;
 
@@ -147,36 +132,41 @@ bool renderer_init(SDL_Window* window) {
     renderer_create_sync_objects();
 
     // Create texture
-    if (!vulkan_image_create_texture(&state.context, "../res/texture/texture.png", &state.texture)) {
+    if (!vulkan_image_create_texture(&state.context, "../res/viking_room.png", &state.viking_texture)) {
         return false;
     }
     renderer_create_texture_sampler();
     renderer_create_uniform_objects();
 
+    // Load model
+    if (!obj_load("../res/viking_room.obj", &state.viking_vertices, &state.viking_indices)) {
+        return false;
+    }
+
     // Create vertex buffer
     vulkan_buffer_create(&state.context, {
-        .size = sizeof(vertices),
+        .size = state.viking_vertices.size() * sizeof(Vertex3d),
         .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     }, &state.vertex_buffer);
     vulkan_buffer_bind(&state.context, &state.vertex_buffer, 0);
     vulkan_buffer_upload_data(&state.context, &state.vertex_buffer, {
         .offset = 0,
-        .size = sizeof(vertices),
-        .data = (void*)vertices
+        .size = state.viking_vertices.size() * sizeof(Vertex3d),
+        .data = state.viking_vertices.data()
     });
 
     // Create index buffer
     vulkan_buffer_create(&state.context, {
-        .size = sizeof(indices),
+        .size = state.viking_indices.size() * sizeof(uint32_t),
         .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
     }, &state.index_buffer);
     vulkan_buffer_bind(&state.context, &state.index_buffer, 0);
     vulkan_buffer_upload_data(&state.context, &state.index_buffer, {
         .offset = 0,
-        .size = sizeof(indices),
-        .data = (void*)indices
+        .size = state.viking_indices.size() * sizeof(uint32_t),
+        .data = state.viking_indices.data()
     });
 
     state.context.frame_index = 0;
@@ -189,7 +179,7 @@ void renderer_quit() {
     vkDeviceWaitIdle(state.context.device.logical_device);
 
     renderer_destroy_texture_sampler();
-    vulkan_image_destroy(&state.context, &state.texture);
+    vulkan_image_destroy(&state.context, &state.viking_texture);
 
     vulkan_buffer_destroy(&state.context, &state.vertex_buffer);
     vulkan_buffer_destroy(&state.context, &state.index_buffer);
@@ -413,14 +403,23 @@ void renderer_end_frame() {
 void renderer_draw_frame(double delta) {
     renderer_begin_frame();
 
+    static float start_time = SDL_GetTicksNS();
+    float elapsed_percent = (SDL_GetTicksNS() - start_time) / (5 * SDL_NS_PER_SECOND);
+
+    quat rotation = quat::from_axis_angle(vec3::back(), elapsed_percent * 90 * ZEN_DEG_TO_RAD, true);
+
     VulkanUniformBufferObject ubo {
-        .model = mat4::identity(),
+        .model = rotation.to_rotation_matrix(vec3(0.0f)),
         .view = mat4::look_at(vec3(2.0f, 2.0f, 2.0f), vec3(0.0f, 0.0f, 0.0f), vec3(0.0f, 0.0f, 1.0f)),
         .projection = mat4::perspective(
             45.0f * ZEN_DEG_TO_RAD,
             (float)state.context.window_width / (float)state.context.window_height,
             0.1f, 1000.0f)
     };
+    // This accounts for the fact that our math library is GL-style (Y coordinate inverted)
+    // should probably change the math library or the coordinate system creation
+    ubo.projection.data[5] *= -1;
+
     vulkan_buffer_load_data(&state.context, &state.context.uniform_buffer, {
         .offset = state.context.frame_index * sizeof(VulkanUniformBufferObject),
         .size = sizeof(VulkanUniformBufferObject),
@@ -439,7 +438,7 @@ void renderer_draw_frame(double delta) {
         VK_PIPELINE_BIND_POINT_GRAPHICS, state.context.graphics_pipeline.layout,
         0, 1, &state.context.descriptor_sets[state.context.frame_index], 0, nullptr);
 
-    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], ARRAY_LENGTH(indices), 1, 0, 0, 0);
+    vkCmdDrawIndexed(state.context.graphics_command_buffers[state.context.frame_index], state.viking_indices.size(), 1, 0, 0, 0);
 
     renderer_end_frame();
 }
@@ -692,8 +691,8 @@ void renderer_create_uniform_objects() {
         };
 
         descriptor_image_infos[index] = {
-            .sampler = state.texutre_sampler,
-            .imageView = state.texture.view,
+            .sampler = state.texture_sampler,
+            .imageView = state.viking_texture.view,
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         };
         descriptor_writes[VULKAN_MAX_FRAMES_IN_FLIGHT + index] = {
@@ -740,12 +739,12 @@ void renderer_create_texture_sampler() {
         state.context.device.logical_device,
         &sampler_create_info,
         state.context.allocator,
-        &state.texutre_sampler));
+        &state.texture_sampler));
 }
 
 void renderer_destroy_texture_sampler() {
     vkDestroySampler(
-        state.context.device.logical_device, state.texutre_sampler, state.context.allocator);
+        state.context.device.logical_device, state.texture_sampler, state.context.allocator);
 }
 
 void renderer_recreate_swapchain() {

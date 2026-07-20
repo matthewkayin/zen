@@ -4,6 +4,7 @@
 #include "core/logger.h"
 #include "util/string.h"
 #include <unordered_map>
+#include <string>
 
 enum ObjEntryType {
     OBJ_ENTRY_TYPE_COMMENT,
@@ -59,8 +60,20 @@ bool obj_load(const char* path, std::vector<Vertex3d>* out_vertices, std::vector
     const uint32_t MAX_WORD_COUNT = 8;
     char* words[MAX_WORD_COUNT];
     char line[256];
+    uint32_t line_number = 0;
 
     while (fgets(line, sizeof(line), file) != NULL) {
+        // Remove newline from end of line
+        char* line_ptr = line;
+        while (*line_ptr != '\0') {
+            line_ptr++;
+        }
+        line_ptr--;
+        if (*line_ptr == '\n') {
+            *line_ptr = '\0';
+        }
+
+        // Split line into words
         uint32_t word_count;
         string_split(line, ' ', MAX_WORD_COUNT, words, &word_count);
         if (word_count == 0) {
@@ -71,7 +84,7 @@ bool obj_load(const char* path, std::vector<Vertex3d>* out_vertices, std::vector
         switch (entry_type) {
             case OBJ_ENTRY_TYPE_POSITION: {
                 if (word_count < 4) {
-                    log_error("Improper position in %s: %s.", path, line);
+                    log_error("Improper position in %s line %u.", path, line_number);
                     return false;
                 }
                 positions.push_back(vec3(
@@ -82,7 +95,7 @@ bool obj_load(const char* path, std::vector<Vertex3d>* out_vertices, std::vector
             }
             case OBJ_ENTRY_TYPE_NORMAL: {
                 if (word_count < 4) {
-                    log_error("Improper normal in %s: %s.", path, line);
+                    log_error("Improper normal in %s line %u.", path, line_number);
                     return false;
                 }
                 normals.push_back(vec3(
@@ -93,7 +106,7 @@ bool obj_load(const char* path, std::vector<Vertex3d>* out_vertices, std::vector
             }
             case OBJ_ENTRY_TYPE_TEX_COORD: {
                 if (word_count < 3) {
-                    log_error("Improper tex_coord in %s: %s.", path, line);
+                    log_error("Improper tex_coord in %s line %u.", path, line_number);
                     return false;
                 }
                 tex_coords.push_back(vec2(
@@ -103,23 +116,24 @@ bool obj_load(const char* path, std::vector<Vertex3d>* out_vertices, std::vector
             }
             case OBJ_ENTRY_TYPE_FACE: {
                 if (word_count < 4) {
-                    log_error("Improper face in %s: %s.", path, line);
+                    log_error("Improper face in %s line %u. Line has %u words. Expected 4.",
+                        path, line_number, word_count);
                     return false;
                 }
 
                 for (uint32_t index = 0; index < 3; index++) {
                     char* index_strs[3];
                     uint32_t index_str_count;
-                    string_split(words[index], '/', 3, index_strs, &index_str_count);
+                    string_split(words[index + 1], '/', 3, index_strs, &index_str_count);
                     if (index_str_count != 3) {
-                        log_error("Improper face vertex in %s: %s.", path, words[index]);
+                        log_error("Improper face vertex in %s line %u.", path, line_number);
                         return false;
                     }
 
                     vertices.push_back({
-                        .position_index = (uint32_t)std::stoul(index_strs[0]),
-                        .tex_coord_index = (uint32_t)std::stoul(index_strs[1]),
-                        .normal_index = (uint32_t)std::stoul(index_strs[2])
+                        .position_index = (uint32_t)std::stoul(index_strs[0]) - 1U,
+                        .normal_index = (uint32_t)std::stoul(index_strs[2]) - 1U,
+                        .tex_coord_index = (uint32_t)std::stoul(index_strs[1]) - 1U
                     });
                 }
                 break;
@@ -128,6 +142,8 @@ bool obj_load(const char* path, std::vector<Vertex3d>* out_vertices, std::vector
                 break;
             }
         }
+
+        line_number++;
     }
 
     out_vertices->clear();

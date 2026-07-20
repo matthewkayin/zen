@@ -33,5 +33,6 @@ void string_split(
                 }
             }
         }
+        str_ptr++;
     }
 }

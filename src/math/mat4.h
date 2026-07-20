@@ -66,9 +66,8 @@ struct mat4 {
 
     static mat4 look_at(vec3 position, vec3 target, vec3 up) {
         mat4 result;
-        vec3 z_axis(target.x - position.x, target.y - position.y, target.z - position.z);
-        z_axis.normalize();
 
+        vec3 z_axis = (target - position).normalized();
         vec3 x_axis = vec3::cross(z_axis, up).normalized();
         vec3 y_axis = vec3::cross(x_axis, z_axis);
 
