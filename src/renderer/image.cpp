@@ -90,6 +90,10 @@ bool vulkan_image_create_texture(VulkanContext* context, const char* path, Vulka
         log_error("Failed to convert image %s. %s", path, SDL_GetError());
         return false;
     }
+    if (!SDL_FlipSurface(image_surface, SDL_FLIP_VERTICAL)) {
+        log_error("Failed to flip image %s vertically: %s", path, SDL_GetError());
+        return false;
+    }
     const size_t image_size = image_surface->pitch * image_surface->h;
 
     // Copy image data to staging buffer

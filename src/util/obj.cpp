@@ -30,18 +30,16 @@ struct ObjVertex {
     }
 };
 
-namespace std {
-    template <>
-    struct hash<ObjVertex> {
-        size_t operator()(const ObjVertex& vertex) const {
-            size_t h = 17;
-            h *= 31 + std::hash<int>()(vertex.position_index);
-            h *= 31 + std::hash<int>()(vertex.normal_index);
-            h *= 31 + std::hash<int>()(vertex.tex_coord_index);
-            return h;
-        }
-    };
-}
+template <>
+struct std::hash<ObjVertex> {
+    size_t operator()(const ObjVertex& vertex) const {
+        size_t h = 17;
+        h *= 31 + std::hash<int>()(vertex.position_index);
+        h *= 31 + std::hash<int>()(vertex.normal_index);
+        h *= 31 + std::hash<int>()(vertex.tex_coord_index);
+        return h;
+    }
+};
 
 ObjEntryType obj_entry_type_from_str(const char* str);
 
