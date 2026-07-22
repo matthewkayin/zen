@@ -34,6 +34,11 @@ struct VulkanImage {
     VkImage handle;
     VkDeviceMemory memory;
     VkImageView view;
+
+    VkFormat format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t mip_levels;
 };
 
 struct VulkanSwapchain {

@@ -102,7 +102,8 @@ void vulkan_swapchain_create(VulkanContext* context) {
         vulkan_image_view_create(context, {
             .image = context->swapchain.images[image_index],
             .format = context->swapchain.image_format.format,
-            .aspect = VK_IMAGE_ASPECT_COLOR_BIT
+            .aspect = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mip_levels = 1
         }, &context->swapchain.image_views[image_index]);
     }
 
@@ -111,6 +112,7 @@ void vulkan_swapchain_create(VulkanContext* context) {
     vulkan_image_create(context, {
         .width = context->swapchain.extent.width,
         .height = context->swapchain.extent.height,
+        .mip_levels = 1,
         .format = context->device.depth_format,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
