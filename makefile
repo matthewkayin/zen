@@ -52,8 +52,6 @@ ifeq ($(OS),Windows_NT)
 	SHADER_FILES := $(call rwildcard,$(SHADER_SRC_DIR)/,*.slang)
 	SHADER_DIRECTORIES := \$(SHADER_SRC_DIR) $(subst $(DIRECTORY),,$(shell dir $(SHADER_SRC_DIR) /S /AD /B | findstr /i $(SHADER_SRC_DIR)))
 
-	CXX_FLAGS += \
-	    -Wno-missing-designated-field-initializers
 	LD_FLAGS += \
 		-L$(LIB_DIR) \
 		-lSDL3 \

@@ -69,6 +69,8 @@ void vulkan_swapchain_create(VulkanContext* context) {
 
     VkSwapchainCreateInfoKHR swapchain_create_info {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
         .surface = context->surface,
         .minImageCount = target_image_count,
         .imageFormat = context->swapchain.image_format.format,
@@ -107,6 +109,19 @@ void vulkan_swapchain_create(VulkanContext* context) {
         }, &context->swapchain.image_views[image_index]);
     }
 
+    // Create color attachment
+    vulkan_image_create(context, {
+        .width = context->swapchain.extent.width,
+        .height = context->swapchain.extent.height,
+        .mip_levels = 1,
+        .format = context->swapchain.image_format.format,
+        .msaa_sample_count = context->device.msaa_sample_count,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .aspect = VK_IMAGE_ASPECT_COLOR_BIT,
+        .memory_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    }, &context->swapchain.color_attachment);
+
     // Create depth attachment
     ZEN_ASSERT(vulkan_device_get_supported_depth_format(&context->device, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT));
     vulkan_image_create(context, {
@@ -114,6 +129,7 @@ void vulkan_swapchain_create(VulkanContext* context) {
         .height = context->swapchain.extent.height,
         .mip_levels = 1,
         .format = context->device.depth_format,
+        .msaa_sample_count = context->device.msaa_sample_count,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         .aspect = VK_IMAGE_ASPECT_DEPTH_BIT,
@@ -126,6 +142,7 @@ void vulkan_swapchain_create(VulkanContext* context) {
 void vulkan_swapchain_destroy(VulkanContext* context) {
     vkDeviceWaitIdle(context->device.logical_device);
 
+    vulkan_image_destroy(context, &context->swapchain.color_attachment);
     vulkan_image_destroy(context, &context->swapchain.depth_attachment);
 
     // Destroy views

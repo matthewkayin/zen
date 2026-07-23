@@ -51,6 +51,7 @@ bool renderer_init(SDL_Window* window) {
 
     VkApplicationInfo app_info {
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pNext = nullptr,
         .pApplicationName = ZEN_APP_NAME,
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
         .pEngineName = "Zen Engine",
@@ -80,6 +81,8 @@ bool renderer_init(SDL_Window* window) {
 
     VkInstanceCreateInfo instance_create_info {
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
         .pApplicationInfo = &app_info,
         .enabledLayerCount = (uint32_t)layer_names.size(),
         .ppEnabledLayerNames = layer_names.data(),
@@ -120,6 +123,7 @@ bool renderer_init(SDL_Window* window) {
     // Create graphics command buffer
     VkCommandBufferAllocateInfo graphics_command_buffer_allocate_info {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
         .commandPool = state.context.device.graphics_command_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = ARRAY_LENGTH(state.context.graphics_command_buffers)
@@ -256,11 +260,13 @@ void renderer_begin_frame() {
     vkResetCommandBuffer(state.context.graphics_command_buffers[state.context.frame_index], 0);
     VkCommandBufferBeginInfo command_buffer_begin_info {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = 0
+        .pNext = nullptr,
+        .flags = 0,
+        .pInheritanceInfo = nullptr
     };
     vkBeginCommandBuffer(state.context.graphics_command_buffers[state.context.frame_index], &command_buffer_begin_info);
 
-    // Transition swapchain image to color attachment optimal
+    // Transition swapchain image to COLOR_ATTACHMENT_OPTIMAL
     vulkan_image_transition_layout_ext({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.images[state.context.image_index],
@@ -275,7 +281,22 @@ void renderer_begin_frame() {
         .dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
     });
 
-    // Transition depth attachment to depth attachment optimal
+    // Transition multisampled color attachment to COLOR_ATTACHMENT_OPTIMAL
+    vulkan_image_transition_layout_ext({
+        .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
+        .image = state.context.swapchain.color_attachment.handle,
+        .image_aspect = VK_IMAGE_ASPECT_COLOR_BIT,
+        .base_mip_level = 0,
+        .mip_levels = 1,
+        .old_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .new_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .src_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        .dst_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        .src_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+    });
+
+    // Transition depth attachment to DEPTH_ATTACHMENT_OPTIMAL
     vulkan_image_transition_layout_ext({
         .command_buffer = state.context.graphics_command_buffers[state.context.frame_index],
         .image = state.context.swapchain.depth_attachment.handle,
@@ -290,20 +311,28 @@ void renderer_begin_frame() {
         .dst_stage_mask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
     });
 
-    VkRenderingAttachmentInfo rendering_attachment_info {
+    VkRenderingAttachmentInfo color_attachment {
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = state.context.swapchain.image_views[state.context.image_index],
+        .pNext = nullptr,
+        .imageView = state.context.swapchain.color_attachment.view,
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT,
+        .resolveImageView = state.context.swapchain.image_views[state.context.image_index],
+        .resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue = {
             .color = { .float32 = { 0.0f, 0.0f, 0.0f, 1.0f }}
         }
     };
-    VkRenderingAttachmentInfo depth_attachment_info {
+    VkRenderingAttachmentInfo depth_attachment {
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .pNext = nullptr,
         .imageView = state.context.swapchain.depth_attachment.view,
         .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+        .resolveMode = VK_RESOLVE_MODE_NONE,
+        .resolveImageView = VK_NULL_HANDLE,
+        .resolveImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .clearValue = {
@@ -316,14 +345,18 @@ void renderer_begin_frame() {
 
     VkRenderingInfo rendering_info {
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .pNext = nullptr,
+        .flags = 0,
         .renderArea = {
             .offset = { .x = 0, .y = 0 },
             .extent = state.context.swapchain.extent
         },
         .layerCount = 1,
+        .viewMask = 0,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &rendering_attachment_info,
-        .pDepthAttachment = &depth_attachment_info
+        .pColorAttachments = &color_attachment,
+        .pDepthAttachment = &depth_attachment,
+        .pStencilAttachment = nullptr
     };
     vkCmdBeginRendering(state.context.graphics_command_buffers[state.context.frame_index], &rendering_info);
     vkCmdBindPipeline(state.context.graphics_command_buffers[state.context.frame_index],
@@ -371,6 +404,7 @@ void renderer_end_frame() {
     };
     VkSubmitInfo submit_info {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &state.context.acquire_semaphores[state.context.frame_index],
         .pWaitDstStageMask = pipeline_stage_flags,
@@ -388,6 +422,7 @@ void renderer_end_frame() {
 
     VkPresentInfoKHR present_info {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &state.context.submit_semaphores[state.context.image_index],
         .swapchainCount = 1,
@@ -406,7 +441,7 @@ void renderer_end_frame() {
     state.context.frame_index = (state.context.frame_index + 1) % VULKAN_MAX_FRAMES_IN_FLIGHT;
 }
 
-void renderer_draw_frame(double delta) {
+void renderer_draw_frame(double) {
     renderer_begin_frame();
 
     static float start_time = SDL_GetTicksNS();
@@ -420,7 +455,8 @@ void renderer_draw_frame(double delta) {
         .projection = mat4::perspective(
             45.0f * ZEN_DEG_TO_RAD,
             (float)state.context.window_width / (float)state.context.window_height,
-            0.1f, 1000.0f)
+            0.1f, 1000.0f),
+        .padding = {}
     };
     // This accounts for the fact that our math library is GL-style (Y coordinate inverted)
     // should probably change the math library or the coordinate system creation
@@ -528,6 +564,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL renderer_debug_callback(
 void renderer_create_debugger() {
     VkDebugUtilsMessengerCreateInfoEXT debug_create_info {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .pNext = nullptr,
+        .flags = 0,
         .messageSeverity =
             VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
             VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
@@ -567,7 +605,9 @@ void renderer_create_sync_objects() {
     // Acquire semaphores
     for (uint32_t index = 0; index < ARRAY_LENGTH(state.context.acquire_semaphores); index++) {
         VkSemaphoreCreateInfo semaphore_create_info {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0
         };
         VK_CHECK(vkCreateSemaphore(
             state.context.device.logical_device,
@@ -580,7 +620,9 @@ void renderer_create_sync_objects() {
     state.context.submit_semaphores = std::vector<VkSemaphore>(state.context.swapchain.images.size());
     for (uint32_t index = 0; index < (uint32_t)state.context.swapchain.images.size(); index++) {
         VkSemaphoreCreateInfo semaphore_create_info {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0
         };
         VK_CHECK(vkCreateSemaphore(
             state.context.device.logical_device,
@@ -593,6 +635,7 @@ void renderer_create_sync_objects() {
     for (uint32_t index = 0; index < ARRAY_LENGTH(state.context.frame_fences); index++) {
         VkFenceCreateInfo fence_create_info {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .pNext = nullptr,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT
         };
         VK_CHECK(vkCreateFence(
@@ -651,6 +694,7 @@ void renderer_create_uniform_objects() {
     };
     VkDescriptorPoolCreateInfo descriptor_pool_create_info {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .pNext = nullptr,
         .flags = 0,
         .maxSets = VULKAN_MAX_FRAMES_IN_FLIGHT,
         .poolSizeCount = ARRAY_LENGTH(descriptor_pool_sizes),
@@ -669,6 +713,7 @@ void renderer_create_uniform_objects() {
     };
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .pNext = nullptr,
         .descriptorPool = state.context.descriptor_pool,
         .descriptorSetCount = ARRAY_LENGTH(layouts),
         .pSetLayouts = layouts
@@ -688,12 +733,15 @@ void renderer_create_uniform_objects() {
         };
         descriptor_writes[index] = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
             .dstSet = state.context.descriptor_sets[index],
             .dstBinding = 0,
             .dstArrayElement = 0,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &descriptor_buffer_infos[index]
+            .pImageInfo = nullptr,
+            .pBufferInfo = &descriptor_buffer_infos[index],
+            .pTexelBufferView = nullptr
         };
 
         descriptor_image_infos[index] = {
@@ -703,12 +751,15 @@ void renderer_create_uniform_objects() {
         };
         descriptor_writes[VULKAN_MAX_FRAMES_IN_FLIGHT + index] = {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .pNext = nullptr,
             .dstSet = state.context.descriptor_sets[index],
             .dstBinding = 1,
             .dstArrayElement = 0,
             .descriptorCount = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .pImageInfo = &descriptor_image_infos[index]
+            .pImageInfo = &descriptor_image_infos[index],
+            .pBufferInfo = nullptr,
+            .pTexelBufferView = nullptr
         };
     }
     vkUpdateDescriptorSets(
@@ -725,6 +776,8 @@ void renderer_create_texture_sampler() {
     // Create texture sample
     VkSamplerCreateInfo sampler_create_info {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
         .magFilter = VK_FILTER_LINEAR,
         .minFilter = VK_FILTER_LINEAR,
         .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,

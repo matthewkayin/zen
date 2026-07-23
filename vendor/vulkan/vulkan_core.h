@@ -7586,7 +7586,7 @@ typedef struct VkImageCopy2 {
     VkExtent3D                  extent;
 } VkImageCopy2;
 
-typedef struct VkCopyImageInfo2 {
+typedef struct VkCopyImageInfo3 {
     VkStructureType        sType;
     const void*            pNext;
     VkImage                srcImage;

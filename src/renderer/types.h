@@ -18,6 +18,7 @@ struct VulkanDevice {
 
     VkPhysicalDeviceProperties properties;
     VkFormat depth_format;
+    VkSampleCountFlagBits msaa_sample_count;
 
     uint32_t graphics_queue_index;
     uint32_t present_queue_index;
@@ -45,6 +46,7 @@ struct VulkanSwapchain {
     VkSwapchainKHR handle;
     VkSurfaceFormatKHR image_format;
     VkExtent2D extent;
+    VulkanImage color_attachment;
     VulkanImage depth_attachment;
     std::vector<VkImage> images;
     std::vector<VkImageView> image_views;

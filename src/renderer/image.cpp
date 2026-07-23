@@ -16,6 +16,8 @@ bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params,
     // Create image
     VkImageCreateInfo image_create_info {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = params.format,
         .extent = {
@@ -25,10 +27,13 @@ bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params,
         },
         .mipLevels = params.mip_levels,
         .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .samples = params.msaa_sample_count,
         .tiling = params.tiling,
         .usage = params.usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .queueFamilyIndexCount = 0,
+        .pQueueFamilyIndices = nullptr,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     };
     VkResult create_result = vkCreateImage(
         context->device.logical_device, &image_create_info, context->allocator, &out_image->handle);
@@ -50,6 +55,7 @@ bool vulkan_image_create(VulkanContext* context, VulkanImageCreateParams params,
     // Allocate image memory
     VkMemoryAllocateInfo allocate_info {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
         .allocationSize = memory_reqeuirements.size,
         .memoryTypeIndex = memory_type_index
     };
@@ -117,6 +123,7 @@ bool vulkan_image_create_texture(VulkanContext* context, const char* path, Vulka
         .height = (uint32_t)image_surface->h,
         .mip_levels = (uint32_t)std::floor(std::log2(std::max(image_surface->w, image_surface->h))) + 1U,
         .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .msaa_sample_count = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         .aspect = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -190,6 +197,7 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
         // Transition previous mip from TRANSFER_DST_OPTIMAL to TRANSFER_SRC_OPTIMAL (to be read from)
         VkImageMemoryBarrier2 mip_src_barrier {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .pNext = nullptr,
             .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -209,6 +217,12 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
         };
         VkDependencyInfo dependency_info {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .pNext = nullptr,
+            .dependencyFlags = 0,
+            .memoryBarrierCount = 0,
+            .pMemoryBarriers = nullptr,
+            .bufferMemoryBarrierCount = 0,
+            .pBufferMemoryBarriers = nullptr,
             .imageMemoryBarrierCount = 1,
             .pImageMemoryBarriers = &mip_src_barrier
         };
@@ -217,9 +231,11 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
         // Blit previous mip onto current mip
         VkImageBlit2 image_blit {
             .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
+            .pNext = nullptr,
             .srcSubresource = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .mipLevel = level - 1,
+                .baseArrayLayer = 0,
                 .layerCount = 1
             },
             .srcOffsets = {
@@ -233,6 +249,7 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
             .dstSubresource = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .mipLevel = level,
+                .baseArrayLayer = 0,
                 .layerCount = 1
             },
             .dstOffsets = {
@@ -246,6 +263,7 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
         };
         VkBlitImageInfo2 blit_info {
             .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2,
+            .pNext = nullptr,
             .srcImage = image->handle,
             .srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             .dstImage = image->handle,
@@ -269,6 +287,7 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
     VkImageMemoryBarrier2 mip_read_only_barriers[] = {
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .pNext = nullptr,
             .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
@@ -288,6 +307,7 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
         },
         {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .pNext = nullptr,
             .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
@@ -308,6 +328,12 @@ bool vulkan_image_generate_mipmaps(VulkanContext* context, VkCommandBuffer comma
     };
     VkDependencyInfo dependency_info {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .pNext = nullptr,
+        .dependencyFlags = 0,
+        .memoryBarrierCount = 0,
+        .pMemoryBarriers = nullptr,
+        .bufferMemoryBarrierCount = 0,
+        .pBufferMemoryBarriers = nullptr,
         .imageMemoryBarrierCount = ARRAY_LENGTH(mip_read_only_barriers),
         .pImageMemoryBarriers = mip_read_only_barriers
     };
@@ -325,9 +351,17 @@ void vulkan_image_destroy(VulkanContext* context, VulkanImage* image) {
 void vulkan_image_view_create(VulkanContext* context, VulkanImageViewCreateParams params, VkImageView* out_image_view) {
     VkImageViewCreateInfo view_create_info {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
         .image = params.image,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .format = params.format,
+        .components = {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY
+        },
         .subresourceRange = {
             .aspectMask = params.aspect,
             .baseMipLevel = 0,
@@ -387,6 +421,7 @@ void vulkan_image_transition_layout(VulkanImageTransitionLayoutParams params) {
 void vulkan_image_transition_layout_ext(VulkanImageTransitionLayoutExtParams params) {
     VkImageMemoryBarrier2 image_memory_barrier {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .pNext = nullptr,
         .srcStageMask = params.src_stage_mask,
         .srcAccessMask = params.src_access_mask,
         .dstStageMask = params.dst_stage_mask,
@@ -406,6 +441,12 @@ void vulkan_image_transition_layout_ext(VulkanImageTransitionLayoutExtParams par
     };
     VkDependencyInfo dependency_info {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .pNext = nullptr,
+        .dependencyFlags = 0,
+        .memoryBarrierCount = 0,
+        .pMemoryBarriers = nullptr,
+        .bufferMemoryBarrierCount = 0,
+        .pBufferMemoryBarriers = nullptr,
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &image_memory_barrier
     };

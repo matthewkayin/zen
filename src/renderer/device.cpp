@@ -51,6 +51,25 @@ bool vulkan_device_create(VulkanContext* context) {
     // Query physical device properties
     vkGetPhysicalDeviceProperties(context->device.physical_device, &context->device.properties);
 
+    // Determine MSAA sample count - defaults to 1 bit
+    context->device.msaa_sample_count = VK_SAMPLE_COUNT_1_BIT;
+    const VkSampleCountFlagBits sample_counts[] = {
+        VK_SAMPLE_COUNT_64_BIT,
+        VK_SAMPLE_COUNT_32_BIT,
+        VK_SAMPLE_COUNT_16_BIT,
+        VK_SAMPLE_COUNT_8_BIT,
+        VK_SAMPLE_COUNT_4_BIT,
+        VK_SAMPLE_COUNT_2_BIT
+    };
+    uint32_t device_supported_counts = context->device.properties.limits.framebufferColorSampleCounts &
+                                       context->device.properties.limits.framebufferDepthSampleCounts;
+    for (uint32_t index = 0; index < ARRAY_LENGTH(sample_counts); index++) {
+        if (device_supported_counts & sample_counts[index]) {
+            context->device.msaa_sample_count = sample_counts[index];
+            break;
+        }
+    }
+
     log_debug("Creating logical device...");
 
     // Get queue indices

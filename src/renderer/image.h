@@ -7,6 +7,7 @@ struct VulkanImageCreateParams {
     uint32_t height;
     uint32_t mip_levels;
     VkFormat format;
+    VkSampleCountFlagBits msaa_sample_count;
     VkImageTiling tiling;
     VkImageUsageFlags usage;
     VkImageAspectFlags aspect;
