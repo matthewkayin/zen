@@ -91,6 +91,8 @@ bool vulkan_device_create(VulkanContext* context) {
     for (uint32_t index = 0; index < (uint32_t)queue_indices.size(); index++) {
         queue_create_infos[index] = {
             .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
             .queueFamilyIndex = queue_indices[index],
             .queueCount = 1,
             .pQueuePriorities = &queue_priority
@@ -98,40 +100,43 @@ bool vulkan_device_create(VulkanContext* context) {
     }
 
     // Device features to request
-    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT device_extended_dynamic_state_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
-        .pNext = nullptr,
-        .extendedDynamicState = VK_TRUE
-    };
-    VkPhysicalDeviceVulkan13Features device_vulkan13_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-        .pNext = &device_extended_dynamic_state_features,
-        .synchronization2 = VK_TRUE,
-        .dynamicRendering = VK_TRUE
-    };
-    VkPhysicalDeviceVulkan11Features device_vulkan11_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-        .pNext = &device_vulkan13_features,
-        .shaderDrawParameters = VK_TRUE
-    };
-    VkPhysicalDeviceFeatures2 device_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext = &device_vulkan11_features,
-        .features = {
-            .samplerAnisotropy = VK_TRUE
-        }
-    };
+    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT device_extended_dynamic_state_features {};
+    device_extended_dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
+    device_extended_dynamic_state_features.extendedDynamicState = VK_TRUE;
+
+    VkPhysicalDeviceVulkan13Features device_vulkan13_features {};
+    device_vulkan13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    device_vulkan13_features.pNext = &device_extended_dynamic_state_features;
+    device_vulkan13_features.synchronization2 = VK_TRUE;
+    device_vulkan13_features.dynamicRendering = VK_TRUE;
+
+    VkPhysicalDeviceVulkan11Features device_vulkan11_features {};
+    device_vulkan11_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    device_vulkan11_features.pNext = &device_vulkan13_features;
+    device_vulkan11_features.shaderDrawParameters = VK_TRUE;
+
+    VkPhysicalDeviceTimelineSemaphoreFeatures device_timeline_semaphore_features {};
+    device_timeline_semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+    device_timeline_semaphore_features.pNext = &device_vulkan11_features;
+    device_timeline_semaphore_features.timelineSemaphore = VK_TRUE;
+
+    VkPhysicalDeviceFeatures2 device_features {};
+    device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    device_features.pNext = &device_timeline_semaphore_features;
+    device_features.features.samplerAnisotropy = VK_TRUE;
 
     // Create the device
     VkDeviceCreateInfo device_create_info {
         .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
         .pNext = &device_features,
+        .flags = 0,
         .queueCreateInfoCount = (uint32_t)queue_create_infos.size(),
         .pQueueCreateInfos = queue_create_infos.data(),
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
         .enabledExtensionCount = ARRAY_LENGTH(VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES),
-        .ppEnabledExtensionNames = VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES
+        .ppEnabledExtensionNames = VULKAN_DEVICE_REQUIRED_EXTENSION_NAMES,
+        .pEnabledFeatures = nullptr
     };
     VK_CHECK(vkCreateDevice(context->device.physical_device, &device_create_info, context->allocator, &context->device.logical_device));
     log_debug("Logical device created.");
@@ -143,6 +148,7 @@ bool vulkan_device_create(VulkanContext* context) {
     // Create the graphics command pool
     VkCommandPoolCreateInfo graphics_command_pool_create_info {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
         .queueFamilyIndex = context->device.graphics_queue_index
     };
@@ -207,7 +213,7 @@ void vulkan_device_get_queue_indices(
 
     // Iterate through them to find queue indices
     for (uint32_t queue_index = 0; queue_index < (uint32_t)queue_families.size(); queue_index++) {
-        if (queue_families[queue_index].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        if ((queue_families[queue_index].queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) == (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) {
             *out_graphics_index = queue_index;
         }
 
@@ -245,22 +251,26 @@ uint32_t vulkan_device_score_physical_device(VkPhysicalDevice device, VkSurfaceK
     }
 
     // Get device features
-    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT device_extended_dynamic_state_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT,
-        .pNext = nullptr
-    };
-    VkPhysicalDeviceVulkan13Features device_vulkan13_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-        .pNext = &device_extended_dynamic_state_features
-    };
-    VkPhysicalDeviceVulkan11Features device_vulkan11_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-        .pNext = &device_vulkan13_features
-    };
-    VkPhysicalDeviceFeatures2 device_features {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .pNext = &device_vulkan11_features
-    };
+    VkPhysicalDeviceExtendedDynamicStateFeaturesEXT device_extended_dynamic_state_features {};
+    device_extended_dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_FEATURES_EXT;
+    device_extended_dynamic_state_features.pNext = nullptr;
+
+    VkPhysicalDeviceVulkan13Features device_vulkan13_features {};
+    device_vulkan13_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    device_vulkan13_features.pNext = &device_extended_dynamic_state_features;
+
+    VkPhysicalDeviceVulkan11Features device_vulkan11_features {};
+    device_vulkan11_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    device_vulkan11_features.pNext = &device_vulkan13_features;
+
+    VkPhysicalDeviceTimelineSemaphoreFeatures device_timeline_semaphore_features {};
+    device_timeline_semaphore_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+    device_timeline_semaphore_features.pNext = &device_vulkan11_features;
+
+    VkPhysicalDeviceFeatures2 device_features {};
+    device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    device_features.pNext = &device_timeline_semaphore_features;
+
     vkGetPhysicalDeviceFeatures2(device, &device_features);
 
     // Check device features
@@ -282,6 +292,10 @@ uint32_t vulkan_device_score_physical_device(VkPhysicalDevice device, VkSurfaceK
     }
     if (!device_extended_dynamic_state_features.extendedDynamicState) {
         log_debug("Device does not support extended dynamic state.");
+        return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
+    }
+    if (!device_timeline_semaphore_features.timelineSemaphore) {
+        log_debug("Device does not support timeline semaphores.");
         return VULKAN_DEVICE_DOES_NOT_MEET_REQUIREMENTS;
     }
 

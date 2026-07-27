@@ -2,5 +2,6 @@
 
 #include "renderer/types.h"
 
-bool vulkan_pipeline_create(VulkanContext* context);
-void vulkan_pipeline_destroy(VulkanContext* context);
+bool vulkan_pipeline_create_graphics(VulkanContext* context, VulkanPipeline* out_pipeline);
+bool vulkan_pipeline_create_compute(VulkanContext* context, VulkanPipeline* out_pipeline);
+void vulkan_pipeline_destroy(VulkanContext* context, VulkanPipeline* pipeline);

@@ -2,6 +2,8 @@
 
 #include "core/asserts.h"
 #include "math/mat4.h"
+#include "math/vec2.h"
+#include "math/vec4.h"
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -63,14 +65,18 @@ struct VulkanBuffer {
     VkDeviceMemory memory;
 };
 
-// TODO: move this into the frontend or something?
 struct VulkanUniformBufferObject {
-    mat4 model;
-    mat4 view;
-    mat4 projection;
-    uint8_t padding[64];
+    float delta_time;
+    uint8_t padding[252];
 };
-static_assert(sizeof(VulkanUniformBufferObject) == 256ULL, "Some Nvidia cards require this to be exactly 256 bytes.");
+// Some Nvidia cards require this to be exactly 256 bytes.
+static_assert(sizeof(VulkanUniformBufferObject) == 256ULL);
+
+struct VulkanParticle {
+    vec2 position;
+    vec2 velocity;
+    vec4 color;
+};
 
 struct VulkanContext {
     VkInstance instance;
@@ -84,14 +90,22 @@ struct VulkanContext {
     VulkanDevice device;
     VulkanSwapchain swapchain;
     VulkanPipeline graphics_pipeline;
+    VulkanPipeline compute_pipeline;
 
-    VkSemaphore acquire_semaphores[VULKAN_MAX_FRAMES_IN_FLIGHT];
-    std::vector<VkSemaphore> submit_semaphores;
+    VkSemaphore semaphore;
+    uint64_t semaphore_timeline_value;
     VkFence frame_fences[VULKAN_MAX_FRAMES_IN_FLIGHT];
+
     VkCommandBuffer graphics_command_buffers[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VkCommandBuffer compute_command_buffers[VULKAN_MAX_FRAMES_IN_FLIGHT];
+
+    VulkanBuffer shader_storage_buffers[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    VulkanBuffer uniform_buffers[VULKAN_MAX_FRAMES_IN_FLIGHT];
+    void* uniform_buffer_data[VULKAN_MAX_FRAMES_IN_FLIGHT];
+
     VkDescriptorPool descriptor_pool;
-    VkDescriptorSet descriptor_sets[VULKAN_MAX_FRAMES_IN_FLIGHT];
-    VulkanBuffer uniform_buffer;
+    VkDescriptorSet compute_descriptor_sets[VULKAN_MAX_FRAMES_IN_FLIGHT];
+
     uint32_t frame_index;
     uint32_t image_index;
 };

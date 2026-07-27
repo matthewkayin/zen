@@ -5,7 +5,7 @@
 #include "util/file.h"
 #include "math/vertex3d.h"
 
-bool vulkan_pipeline_create(VulkanContext* context) {
+bool vulkan_pipeline_create_graphics(VulkanContext* context, VulkanPipeline* out_pipeline) {
     // Read shader file
     std::vector<uint8_t> shader_contents;
     if (!file_read_blob("res/shader/shader.spv", &shader_contents)) {
@@ -49,27 +49,21 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     // Vertex input
     VkVertexInputBindingDescription vertex_binding_description {
         .binding = 0,
-        .stride = sizeof(Vertex3d),
+        .stride = sizeof(VulkanParticle),
         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
     };
     VkVertexInputAttributeDescription vertex_attribute_descriptions[] = {
         {
             .location = 0,
             .binding = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(Vertex3d, position)
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(VulkanParticle, position)
         },
         {
             .location = 1,
             .binding = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(Vertex3d, normal)
-        },
-        {
-            .location = 2,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = offsetof(Vertex3d, tex_coord)
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = offsetof(VulkanParticle, color)
         }
     };
     VkPipelineVertexInputStateCreateInfo vertex_input_state {
@@ -87,7 +81,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
         .primitiveRestartEnable = VK_FALSE
     };
 
@@ -124,7 +118,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
         .pNext = nullptr,
         .flags = 0,
-        .rasterizationSamples = context->device.msaa_sample_count,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
         .sampleShadingEnable = VK_FALSE,
         .minSampleShading = 1.0f,
         .pSampleMask = nullptr,
@@ -229,7 +223,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         context->device.logical_device,
         &descriptor_set_layout_create_info,
         context->allocator,
-        &context->graphics_pipeline.descriptor_set_layout));
+        &out_pipeline->descriptor_set_layout));
 
     // Create layout
     VkPipelineLayoutCreateInfo layout_create_info {
@@ -237,7 +231,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .pNext = nullptr,
         .flags = 0,
         .setLayoutCount = 1,
-        .pSetLayouts = &context->graphics_pipeline.descriptor_set_layout,
+        .pSetLayouts = &out_pipeline->descriptor_set_layout,
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr
     };
@@ -245,7 +239,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         context->device.logical_device,
         &layout_create_info,
         context->allocator,
-        &context->graphics_pipeline.layout));
+        &out_pipeline->layout));
 
     VkPipelineRenderingCreateInfo pipeline_rendering_create_info {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
@@ -253,7 +247,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .viewMask = 0,
         .colorAttachmentCount = 1,
         .pColorAttachmentFormats = &context->swapchain.image_format.format,
-        .depthAttachmentFormat = context->device.depth_format,
+        .depthAttachmentFormat = VK_FORMAT_UNDEFINED,
         .stencilAttachmentFormat = VK_FORMAT_UNDEFINED
     };
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info {
@@ -268,10 +262,10 @@ bool vulkan_pipeline_create(VulkanContext* context) {
         .pViewportState = &viewport_state,
         .pRasterizationState = &rasterization_state,
         .pMultisampleState = &multisample_state,
-        .pDepthStencilState = &depth_stencil_state,
+        .pDepthStencilState = VK_NULL_HANDLE,
         .pColorBlendState = &color_blend_state,
         .pDynamicState = &dynamic_state,
-        .layout = context->graphics_pipeline.layout,
+        .layout = out_pipeline->layout,
         .renderPass = nullptr,
         .subpass = 0,
         .basePipelineHandle = VK_NULL_HANDLE,
@@ -279,7 +273,7 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     };
     VkResult result = vkCreateGraphicsPipelines(
         context->device.logical_device, VK_NULL_HANDLE, 1, &graphics_pipeline_create_info,
-        context->allocator, &context->graphics_pipeline.handle);
+        context->allocator, &out_pipeline->handle);
     if (vulkan_result_is_error(result)) {
         log_error("Failed to create graphics pipeline: %s.", vulkan_result_str(result));
         return false;
@@ -292,8 +286,118 @@ bool vulkan_pipeline_create(VulkanContext* context) {
     return true;
 }
 
-void vulkan_pipeline_destroy(VulkanContext* context) {
-    vkDestroyPipeline(context->device.logical_device, context->graphics_pipeline.handle, context->allocator);
-    vkDestroyPipelineLayout(context->device.logical_device, context->graphics_pipeline.layout, context->allocator);
-    vkDestroyDescriptorSetLayout(context->device.logical_device, context->graphics_pipeline.descriptor_set_layout, context->allocator);
+bool vulkan_pipeline_create_compute(VulkanContext* context, VulkanPipeline* out_pipeline) {
+    // Read shader file
+    std::vector<uint8_t> shader_contents;
+    if (!file_read_blob("res/shader/shader.spv", &shader_contents)) {
+        return false;
+    }
+
+    // Create shader module
+    VkShaderModuleCreateInfo shader_module_create_info {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .codeSize = shader_contents.size(),
+        .pCode = (uint32_t*)shader_contents.data()
+    };
+    VkShaderModule shader_module;
+    VK_CHECK(vkCreateShaderModule(
+        context->device.logical_device, &shader_module_create_info, context->allocator, &shader_module));
+
+    // Shader stages
+    VkPipelineShaderStageCreateInfo shader_stage {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = shader_module,
+        .pName = "compute_main",
+        .pSpecializationInfo = nullptr
+    };
+
+    // Descriptor set layout
+    VkDescriptorSetLayoutBinding descriptor_set_layout_bindings[] = {
+        {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr
+        },
+        {
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr
+        },
+        {
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr
+        }
+    };
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .bindingCount = ARRAY_LENGTH(descriptor_set_layout_bindings),
+        .pBindings = descriptor_set_layout_bindings
+    };
+    VK_CHECK(vkCreateDescriptorSetLayout(
+        context->device.logical_device,
+        &descriptor_set_layout_create_info,
+        context->allocator,
+        &out_pipeline->descriptor_set_layout));
+
+    // Layout
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .setLayoutCount = 1,
+        .pSetLayouts = &out_pipeline->descriptor_set_layout,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges = nullptr
+    };
+    VK_CHECK(vkCreatePipelineLayout(
+        context->device.logical_device,
+        &pipeline_layout_create_info,
+        context->allocator,
+        &out_pipeline->layout));
+
+    VkComputePipelineCreateInfo pipeline_create_info {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stage = shader_stage,
+        .layout = out_pipeline->layout,
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = 0
+    };
+    VkResult result = vkCreateComputePipelines(
+        context->device.logical_device,
+        VK_NULL_HANDLE,
+        1, &pipeline_create_info,
+        context->allocator,
+        &out_pipeline->handle);
+    if (result != VK_SUCCESS) {
+        log_error("Vulkan compute pipeline failed to create. Status: %s.", vulkan_result_str(result));
+        return false;
+    }
+
+    // Destroy shader module
+    vkDestroyShaderModule(context->device.logical_device, shader_module, context->allocator);
+
+    log_debug("Vulkan compute pipeline created.");
+    return true;
+}
+
+void vulkan_pipeline_destroy(VulkanContext* context, VulkanPipeline* pipeline) {
+    vkDestroyPipeline(context->device.logical_device, pipeline->handle, context->allocator);
+    vkDestroyPipelineLayout(context->device.logical_device, pipeline->layout, context->allocator);
+    vkDestroyDescriptorSetLayout(context->device.logical_device, pipeline->descriptor_set_layout, context->allocator);
 }

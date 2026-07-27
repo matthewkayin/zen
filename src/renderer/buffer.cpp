@@ -8,6 +8,8 @@ bool vulkan_buffer_create(VulkanContext* context, VulkanBufferCreateParams param
     // Create the buffer
     VkBufferCreateInfo create_info {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
         .size = params.size,
         .usage = params.usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE
@@ -27,6 +29,7 @@ bool vulkan_buffer_create(VulkanContext* context, VulkanBufferCreateParams param
     // Allocate memory for the buffer
     VkMemoryAllocateInfo allocate_info {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .pNext = nullptr,
         .allocationSize = memory_requirements.size,
         .memoryTypeIndex = memory_type_index
     };

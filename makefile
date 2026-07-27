@@ -8,12 +8,12 @@ OBJ_DIR         := obj
 SRC_DIR         := src
 
 CXX             := clang++
-CXX_FLAGS       := -std=c++17 -Wall -Wextra -Wshadow -fno-exceptions
+CXX_FLAGS       := -std=c++20 -Wall -Wextra -Wshadow -fno-exceptions
 LD_FLAGS        :=
 
 SHADER_XX       := slangc
 SHADER_XX_FLAGS := -target spirv -profile spirv_1_4 -emit-spirv-directly \
-				   -fvk-use-entrypoint-name -entry vertex_main -entry fragment_main
+				   -fvk-use-entrypoint-name -entry vertex_main -entry fragment_main -entry compute_main
 
 INCLUDE_FLAGS   := -Isrc -Ivendor
 DEFINES         := -D_CRT_SECURE_NO_WARNINGS

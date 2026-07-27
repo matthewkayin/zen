@@ -7,4 +7,4 @@ void renderer_quit();
 
 void renderer_on_resized();
 
-void renderer_draw_frame(double delta);
+void renderer_draw_frame(double delta_time);

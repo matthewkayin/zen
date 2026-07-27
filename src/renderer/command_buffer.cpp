@@ -6,6 +6,7 @@ void vulkan_command_buffer_begin_single_use(VulkanContext* context, VkCommandBuf
     // Alloc temp command buffer
     VkCommandBufferAllocateInfo temp_command_buffer_alloc_info {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = nullptr,
         .commandPool = context->device.graphics_command_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1
@@ -16,7 +17,9 @@ void vulkan_command_buffer_begin_single_use(VulkanContext* context, VkCommandBuf
     // Begin command buffer
     VkCommandBufferBeginInfo temp_command_buffer_begin_info {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr
     };
     VK_CHECK(vkBeginCommandBuffer(*out_command_buffer, &temp_command_buffer_begin_info));
 }
@@ -28,8 +31,14 @@ void vulkan_command_buffer_end_single_use(VulkanContext* context, VkCommandBuffe
     // Submit command buffer to queue
     VkSubmitInfo submit_info {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 0,
+        .pWaitSemaphores = nullptr,
+        .pWaitDstStageMask = nullptr,
         .commandBufferCount = 1,
-        .pCommandBuffers = command_buffer
+        .pCommandBuffers = command_buffer,
+        .signalSemaphoreCount = 0,
+        .pSignalSemaphores = nullptr
     };
     VK_CHECK(vkQueueSubmit(context->device.graphics_queue, 1, &submit_info, nullptr));
     VK_CHECK(vkQueueWaitIdle(context->device.graphics_queue));
