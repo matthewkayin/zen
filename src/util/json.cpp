@@ -1,10 +1,10 @@
 #include "json.h"
 
 #include "core/logger.h"
-#include "util/string.h"
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
+#include <cstdarg>
 
 Json* json_create_null() {
     Json* json = (Json*)malloc(sizeof(Json));
@@ -526,41 +526,81 @@ bool json_char_is_whitespace(char c) {
     }
 }
 
+#define JSON_PARSE_CURSOR_ERROR_BUFFER_SIZE 512
+
 struct JsonParseCursor {
     const char* str_ptr;
     size_t line_number;
     size_t char_number;
-    const char* error;
+    char error_buffer[JSON_PARSE_CURSOR_ERROR_BUFFER_SIZE];
 };
 
-void json_parse_cursor_step(JsonParseCursor* cursor) {
+Json* json_parse(JsonParseCursor* cursor);
 
+void json_parse_set_error(JsonParseCursor* cursor, const char* message, ...) {
+    char* error_ptr = cursor->error_buffer;
+    error_ptr += sprintf(error_ptr, "JSON parse error on line %zu, char %zu: ",
+        cursor->line_number,
+        cursor->char_number);
+
+    __builtin_va_list arg_ptr;
+    va_start(arg_ptr, message);
+    vsprintf(error_ptr, message, arg_ptr);
+    va_end(arg_ptr);
 }
 
-Json* json_parse_null(const char** json_str) {
-    if (!string_begins_with(*json_str, "null")) {
+void json_parse_step(JsonParseCursor* cursor, size_t amount) {
+    cursor->str_ptr += amount;
+    cursor->char_number += amount;
+}
+
+void json_parse_skip_to_next_non_whitespace_character(JsonParseCursor* cursor) {
+    while (!json_char_is_whitespace(*(cursor->str_ptr)) && *(cursor->str_ptr) != '\0') {
+        if (*(cursor->str_ptr) == '\n') {
+            cursor->line_number++;
+            cursor->char_number = 0;
+        }
+
+        json_parse_step(cursor, 1);
+    }
+}
+
+bool json_parse_consume_string(JsonParseCursor* cursor, const char* str) {
+    const char* str_ptr = str;
+    while (*str_ptr != '\0') {
+        if (*(cursor->str_ptr) != *str_ptr) {
+            json_parse_set_error(cursor, "Unexpected token '%u'", *(cursor->str_ptr));
+            return false;
+        }
+
+        json_parse_step(cursor, 1);
+        str_ptr++;
+    }
+
+    return true;
+}
+
+Json* json_parse_null(JsonParseCursor* cursor) {
+    if (!json_parse_consume_string(cursor, "null")) {
         return NULL;
     }
 
-    *json_str += strlen("null");
     return json_create_null();
 }
 
-Json* json_parse_true(const char** json_str) {
-    if (!string_begins_with(*json_str, "true")) {
+Json* json_parse_true(JsonParseCursor* cursor) {
+    if (!json_parse_consume_string(cursor, "true")) {
         return NULL;
     }
 
-    *json_str += strlen("true");
     return json_create_boolean(true);
 }
 
-Json* json_parse_false(const char** json_str) {
-    if (!string_begins_with(*json_str, "false")) {
+Json* json_parse_false(JsonParseCursor* cursor) {
+    if (!json_parse_consume_string(cursor, "false")) {
         return NULL;
     }
 
-    *json_str += strlen("false");
     return json_create_boolean(false);
 }
 
@@ -576,153 +616,222 @@ bool json_char_marks_end_of_number(char c) {
     }
 }
 
-Json* json_parse_number(const char** json_str) {
-    // Check that each character in the number is numeric or a period
-    const char* json_str_ptr = *json_str;
-    bool has_encountered_period = false;
+Json* json_parse_number(JsonParseCursor* cursor) {
+    const char* previous_str_ptr = cursor->str_ptr;
 
-    while (!json_char_marks_end_of_number(*json_str_ptr)) {
-        if (*json_str_ptr == '.') {
+    // Check that each character in the number is numeric or a period
+    bool has_encountered_period = false;
+    while (!json_char_marks_end_of_number(*(cursor->str_ptr))) {
+        if (*(cursor->str_ptr) == '.') {
             if (has_encountered_period) {
+                json_parse_set_error(cursor, "Unexpected token '.'");
                 return NULL;
             }
             has_encountered_period = true;
-        } else if (*json_str_ptr < '0' || *json_str_ptr > '9') {
+        } else if (*(cursor->str_ptr) < '0' || *(cursor->str_ptr) > '9') {
+            json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
             return NULL;
         }
 
-        json_str_ptr++;
+        json_parse_step(cursor, 1);
     }
 
-    *json_str = json_str_ptr;
-
-    double value = strtod(*json_str, NULL);
+    double value = strtod(previous_str_ptr, NULL);
     return json_create_number(value);
 }
 
-Json* json_parse_string(const char** json_str) {
+bool json_parse_string_and_get_pointer(JsonParseCursor* cursor, const char** out_str_ptr, size_t* out_length) {
     // Check that the string is enclosed with quotes and count the string length
-    const char* json_str_ptr = *json_str;
-    if (*json_str_ptr != '"') {
-        return NULL;
+    if (*(cursor->str_ptr) != '"') {
+        json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
+        return false;
     }
-    json_str_ptr++;
+    json_parse_step(cursor, 1);
+    const char* string_value_ptr = cursor->str_ptr;
 
-    while (*json_str_ptr != '"') {
-        if (*json_str_ptr == '\0') {
-            return NULL;
+    // Step until we hit the end quote
+    while (*(cursor->str_ptr) != '"') {
+        if (*(cursor->str_ptr) == '\0') {
+            json_parse_set_error(cursor, "Unexpected null-terminator.");
+            return false;
         }
-        json_str_ptr++;
+        json_parse_step(cursor, 1);
+    }
+
+    if (out_str_ptr) {
+        *out_str_ptr = string_value_ptr;
+    }
+    if (out_length) {
+        *out_length = cursor->str_ptr - string_value_ptr;
+    }
+
+    // Step past the end quote
+    json_parse_step(cursor, 1);
+
+    return true;
+}
+
+Json* json_parse_string(JsonParseCursor* cursor) {
+    const char* str_ptr;
+    size_t length;
+    if (!json_parse_string_and_get_pointer(cursor, &str_ptr, &length)) {
+        return NULL;
     }
 
     Json* json = (Json*)malloc(sizeof(Json));
     if (!json) {
+        log_error("Failed to malloc Json.");
         return NULL;
     }
 
     json->type = JSON_TYPE_STRING;
-    json->string.length = json_str_ptr - (*json_str) - 1;
-    json->string.value = (char*)malloc(json->string.length + 1);
-    if (!json->string.value) {
-        free(json);
-        return NULL;
-    }
+    json->string.length = length;
 
-    memcpy(json->string.value, *json_str, json->string.length);
-    json->string.value[json->string.length] = '\0';
+    json->string.value = (char*)malloc(length + 1);
+    memcpy(json->string.value, str_ptr, length);
+    json->string.value[length] = '\0';
 
-    *json_str = json_str_ptr + 1;
     return json;
 }
 
-Json* json_parse_array(const char** json_str) {
-    const char* json_str_ptr = *json_str;
-
-    if (*json_str_ptr != '[') {
+Json* json_parse_array(JsonParseCursor* cursor) {
+    if (*(cursor->str_ptr) != '[') {
+        json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
         return NULL;
     }
-    json_str_ptr++;
+    json_parse_step(cursor, 1);
 
     Json* json_array = json_create_array();
-    while (*json_str_ptr != ']') {
-        if (*json_str_ptr == '\0') {
+    while (*(cursor->str_ptr) != ']') {
+        // Error if null terminator before closing brace
+        if (*(cursor->str_ptr) == '\0') {
+            json_parse_set_error(cursor, "Unexpected null-terminator");
             json_destroy(json_array);
             return NULL;
         }
-        if (json_char_is_whitespace(*json_str_ptr)) {
-            json_str_ptr++;
+
+        // Consume past whitespace
+        if (json_char_is_whitespace(*(cursor->str_ptr))) {
+            json_parse_step(cursor, 1);
             continue;
         }
 
-        Json* json_array_item = json_parse(&json_str_ptr);
+        // Parse and push the item
+        Json* json_array_item = json_parse(cursor);
         if (!json_array_item) {
             json_destroy(json_array);
             return NULL;
         }
         json_array_push(json_array, json_array_item);
 
-        if (*json_str_ptr == ',') {
-            json_str_ptr++;
+        // Consume past comma
+        if (*(cursor->str_ptr) == ',') {
+            json_parse_step(cursor, 1);
         }
     }
 
-    *json_str = json_str_ptr + 1;
+    // Consume the closing brace
+    json_parse_step(cursor, 1);
+
     return json_array;
 }
 
-Json* json_parse_object(const char** json_str) {
-    const char* json_str_ptr = *json_str;
-
-    if (*json_str_ptr != '{') {
+Json* json_parse_object(JsonParseCursor* cursor) {
+    if (*(cursor->str_ptr) != '{') {
+        json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
         return NULL;
     }
-    json_str_ptr++;
+    json_parse_step(cursor, 1);
 
     Json* json_object = json_create_object();
-    Json* key_json = NULL;
-    Json* value_json = NULL;
-    while (*json_str_ptr != '}') {
-        if (*json_str_ptr == '\0') {
+    const size_t KEY_BUFFER_SIZE = 512;
+    char key[KEY_BUFFER_SIZE];
+    bool has_parsed_key = false;
+    bool has_parsed_colon = false;
+    while (*(cursor->str_ptr) != '}') {
+        // Error if null terminator beore closing brace
+        if (*(cursor->str_ptr) == '\0') {
+            json_parse_set_error(cursor, "Unexpected null-terminator");
             json_destroy(json_object);
             return NULL;
         }
-        if (json_char_is_whitespace(*json_str_ptr)) {
-            json_str_ptr++;
+
+        // Consume past whitespace
+        if (json_char_is_whitespace(*(cursor->str_ptr))) {
+            json_parse_step(cursor, 1);
             continue;
         }
 
-        Json* json_object_item = json_parse(&json_str_ptr);
-        if (!json_object_item) {
+        // Parse key
+        if (!has_parsed_key) {
+            const char* key_ptr;
+            size_t key_length;
+            if (!json_parse_string_and_get_pointer(cursor, &key_ptr, &key_length)) {
+                json_destroy(json_object);
+                return NULL;
+            }
+
+            memcpy(key, key_ptr, key_length);
+            key[key_length] = '\0';
+
+            has_parsed_key = true;
+            continue;
+        }
+
+        // Parse colon
+        if (!has_parsed_colon) {
+            if (*(cursor->str_ptr) != ':') {
+                json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
+                json_destroy(json_object);
+                return NULL;
+            }
+
+            json_parse_step(cursor, 1);
+            has_parsed_colon = true;
+            continue;
+        }
+
+        // Parse value
+        Json* value = json_parse(cursor);
+        if (!value) {
             json_destroy(json_object);
             return NULL;
         }
+
+        // Consume past comma
+        if (*(cursor->str_ptr) == ',') {
+            json_parse_step(cursor, 1);
+        }
+
+        // Set key/value
+        json_object_set(json_object, key, value);
+        has_parsed_key = false;
+        has_parsed_colon = false;
     }
+
+    // Consume the closing brace
+    json_parse_step(cursor, 1);
+
+    return json_object;
 }
 
-Json* json_parse(const char* json_str) {
-    const char* json_str_ptr = json_str;
-    while (json_char_is_whitespace(*json_str_ptr)) {
-        json_str_ptr++;
-    }
-    if (*json_str_ptr == '\0') {
+Json* json_parse(JsonParseCursor* cursor) {
+    if (*(cursor->str_ptr) == '{') {
+        return json_parse_object(cursor);
+    } else if (*(cursor->str_ptr) == '[') {
+        return json_parse_array(cursor);
+    } else if (*(cursor->str_ptr) == '\"') {
+        return json_parse_string(cursor);
+    } else if (*(cursor->str_ptr) == 't') {
+        return json_parse_true(cursor);
+    } else if (*(cursor->str_ptr) == 'f') {
+        return json_parse_false(cursor);
+    } else if (*(cursor->str_ptr) == 'n') {
+        return json_parse_null(cursor);
+    } else {
+        json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
         return NULL;
     }
-
-    if (*json_str_ptr == '{') {
-        return json_parse_object(json_str_ptr);
-    } else if (*json_str_ptr == '[') {
-        return json_parse_array(json_str_ptr);
-    } else if (*json_str_ptr == '\"') {
-        return json_parse_string(json_str_ptr);
-    } else if (*json_str_ptr == 't') {
-        return json_parse_true(json_str_ptr);
-    } else if (*json_str_ptr == 'f') {
-        return json_parse_false(json_str_ptr);
-    } else if (*json_str_ptr == 'n') {
-        return json_parse_null(json_str_ptr);
-    }
-
-    return NULL;
 }
 
 Json* json_read(const char* path) {
@@ -772,7 +881,18 @@ Json* json_read(const char* path) {
     file_contents[bytes_read] = '\0';
     fclose(file);
 
-    Json* result = json_parse(file_contents);
+    JsonParseCursor cursor;
+    cursor.str_ptr = file_contents;
+    cursor.line_number = 0;
+    cursor.char_number = 0;
+    cursor.error_buffer[0] = '\0';
+
+    Json* result = json_parse(&cursor);
+    if (!result && cursor.error_buffer[0] != '\0') {
+        log_error("%s", cursor.error_buffer);
+    }
 
     free(file_contents);
+
+    return result;
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 enum JsonType {
     JSON_TYPE_NULL,
     JSON_TYPE_BOOLEAN,
@@ -75,3 +77,6 @@ Json* json_array_set(Json* json, size_t index, Json* value);
 Json* json_array_set_boolean(Json* json, size_t index, bool value);
 Json* json_array_set_number(Json* json, size_t index, double value);
 Json* json_array_set_string(Json* json, size_t index, const char* value);
+
+bool json_write(const Json* json, const char* path);
+Json* json_read(const char* path);

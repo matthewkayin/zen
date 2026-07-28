@@ -93,10 +93,9 @@ else
 		PLATFORM := linux
 		LIB_DIR  := lib/linux64
 
-		CXX_FLAGS += \
-		    -Wno-missing-designated-field-initializers
 		LD_FLAGS += \
-			-lSDL3
+			-lSDL3 \
+			-lvulkan
 	endif
 
 endif

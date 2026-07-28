@@ -1,6 +1,7 @@
 #include "file.h"
 
 #include "core/logger.h"
+#include <cstdio>
 
 bool file_read_blob(const char* path, std::vector<uint8_t>* out_data) {
     FILE* file = fopen(path, "rb");

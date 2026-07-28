@@ -5,6 +5,7 @@
 #include "util/string.h"
 #include <unordered_map>
 #include <string>
+#include <cstring>
 
 enum ObjEntryType {
     OBJ_ENTRY_TYPE_COMMENT,
