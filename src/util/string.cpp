@@ -36,3 +36,18 @@ void string_split(
         str_ptr++;
     }
 }
+
+bool string_begins_with(const char* str, const char* prefix) {
+    const char* str_ptr = str;
+    const char* prefix_ptr = prefix;
+    while (*prefix_ptr != '\0') {
+        if (*str_ptr != *prefix_ptr) {
+            return false;
+        }
+
+        str_ptr++;
+        prefix_ptr++;
+    }
+
+    return true;
+}
