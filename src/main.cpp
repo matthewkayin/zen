@@ -27,6 +27,7 @@ int main() {
     if (!game_init()) {
         return 1;
     }
+    // test
 
     Json* my_obj = json_create_object();
     Json* my_sub_obj = json_object_set(my_obj, "bananas", json_create_object());
