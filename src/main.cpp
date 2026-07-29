@@ -21,26 +21,10 @@ void game_quit();
 bool game_is_running();
 double game_timekeep();
 
-
-#include "util/json.h"
 int main() {
     if (!game_init()) {
         return 1;
     }
-    // test
-
-    Json* my_obj = json_create_object();
-    Json* my_sub_obj = json_object_set(my_obj, "bananas", json_create_object());
-    json_object_set_number(my_sub_obj, "a double", 5.2);
-    json_object_set_number(my_sub_obj, "an int", 5);
-    json_object_set_boolean(my_sub_obj, "a boolean", true);
-    json_object_set_string(my_sub_obj, "a string", "hello friends");
-    Json* my_arr = json_object_set(my_obj, "friends", json_create_array());
-    json_array_push_number(my_arr, 2.2);
-    json_array_push_number(my_arr, 3.2);
-    json_array_push_number(my_arr, 5);
-    json_write(my_obj, "./test.json");
-    json_destroy(my_obj);
 
     while (game_is_running()) {
         double delta_time = game_timekeep();

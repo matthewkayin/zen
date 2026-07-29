@@ -5,6 +5,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdarg>
+#include <cassert>
 
 Json* json_create_null() {
     Json* json = (Json*)malloc(sizeof(Json));
@@ -198,9 +199,11 @@ Json* json_object_set(Json* json, const char* key, Json* value) {
             json->object.capacity = new_capacity;
         }
 
-        json->object.length++;
+        size_t key_length = strlen(key);
+        json->object.keys[index] = (char*)malloc(key_length + 1);
         strcpy(json->object.keys[index], key);
         json->object.values[index] = NULL;
+        json->object.length++;
     }
 
     // Regardless of whether we increased length or not, index will now match the key
@@ -547,11 +550,20 @@ void json_parse_set_error(JsonParseCursor* cursor, const char* message, ...) {
     va_start(arg_ptr, message);
     vsprintf(error_ptr, message, arg_ptr);
     va_end(arg_ptr);
+
+    assert(false);
 }
 
 void json_parse_step(JsonParseCursor* cursor, size_t amount) {
-    cursor->str_ptr += amount;
-    cursor->char_number += amount;
+    for (size_t index = 0; index < amount; index++) {
+        if (*(cursor->str_ptr) == '\n') {
+            cursor->line_number++;
+            cursor->char_number = 0;
+        } else {
+            cursor->char_number++;
+        }
+        cursor->str_ptr += amount;
+    }
 }
 
 void json_parse_skip_to_next_non_whitespace_character(JsonParseCursor* cursor) {
@@ -605,6 +617,10 @@ Json* json_parse_false(JsonParseCursor* cursor) {
 }
 
 bool json_char_marks_end_of_number(char c) {
+    if (json_char_is_whitespace(c)) {
+        return true;
+    }
+
     switch (c) {
         case '\0':
         case ',':
@@ -828,6 +844,8 @@ Json* json_parse(JsonParseCursor* cursor) {
         return json_parse_false(cursor);
     } else if (*(cursor->str_ptr) == 'n') {
         return json_parse_null(cursor);
+    } else if (*(cursor->str_ptr) >= '0' && *(cursor->str_ptr) <= '9') {
+        return json_parse_number(cursor);
     } else {
         json_parse_set_error(cursor, "Unexpected token '%c'", *(cursor->str_ptr));
         return NULL;
@@ -835,8 +853,8 @@ Json* json_parse(JsonParseCursor* cursor) {
 }
 
 Json* json_read(const char* path) {
-    // Open file
-    FILE* file = fopen(path, "r");
+    // Open file - read as binary to get raw bytes (includes things like windows carriage return)
+    FILE* file = fopen(path, "rb");
     if (!file) {
         log_error("Failed to open JSON file %s for reading.", path);
         return NULL;
@@ -871,7 +889,7 @@ Json* json_read(const char* path) {
     // Read into contents buffer
     size_t bytes_read = fread(file_contents, 1, file_size, file);
     if (bytes_read != file_size) {
-        log_error("Error reading JSON file %s. Read %zu bytes into a buffer but expected %zu.", bytes_read, file_size);
+        log_error("Error reading JSON file %s. Read %zu bytes into a buffer but expected %zu.", path, bytes_read, file_size);
         free(file_contents);
         fclose(file);
         return NULL;
@@ -883,7 +901,7 @@ Json* json_read(const char* path) {
 
     JsonParseCursor cursor;
     cursor.str_ptr = file_contents;
-    cursor.line_number = 0;
+    cursor.line_number = 1;
     cursor.char_number = 0;
     cursor.error_buffer[0] = '\0';
 
